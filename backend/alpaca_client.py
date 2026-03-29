@@ -24,8 +24,25 @@ if ALPACA_API_KEY and ALPACA_SECRET_KEY:
         )
         from alpaca.data.timeframe import TimeFrame
         from alpaca.trading.client import TradingClient
-        from alpaca.trading.requests import GetAssetsRequest
-        from alpaca.trading.enums import AssetClass
+        from alpaca.trading.requests import (
+            GetAssetsRequest,
+            MarketOrderRequest,
+            LimitOrderRequest,
+            StopOrderRequest,
+            StopLimitOrderRequest,
+            TakeProfitRequest,
+            StopLossRequest,
+            GetOrdersRequest,
+            ClosePositionRequest,
+            GetPortfolioHistoryRequest,
+        )
+        from alpaca.trading.enums import (
+            AssetClass,
+            OrderSide,
+            TimeInForce,
+            OrderClass,
+            QueryOrderStatus,
+        )
 
         _stock_client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
         _trading_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
@@ -220,3 +237,256 @@ def clear_cache():
     """Clear the price cache."""
     _price_cache.clear()
     _cache_timestamps.clear()
+
+
+# ---------------------------------------------------------------------------
+# Alpaca Paper Trading Functions
+# ---------------------------------------------------------------------------
+
+def get_account() -> dict | None:
+    """Get Alpaca paper account info (balance, buying power, equity)."""
+    if not (_alpaca_available and _trading_client):
+        return None
+    try:
+        acct = _trading_client.get_account()
+        return {
+            "account_number": acct.account_number,
+            "status": str(acct.status),
+            "cash": float(acct.cash),
+            "buying_power": float(acct.buying_power),
+            "portfolio_value": float(acct.portfolio_value),
+            "equity": float(acct.equity),
+            "last_equity": float(acct.last_equity),
+            "long_market_value": float(acct.long_market_value),
+            "short_market_value": float(acct.short_market_value),
+            "initial_margin": float(acct.initial_margin),
+            "daytrade_count": acct.daytrade_count,
+            "pattern_day_trader": acct.pattern_day_trader,
+        }
+    except Exception as e:
+        print(f"[Alpaca] get_account failed: {e}")
+        return None
+
+
+def get_positions() -> list[dict]:
+    """Get all open positions from Alpaca."""
+    if not (_alpaca_available and _trading_client):
+        return []
+    try:
+        positions = _trading_client.get_all_positions()
+        return [
+            {
+                "symbol": p.symbol,
+                "qty": float(p.qty),
+                "side": str(p.side),
+                "avg_entry_price": float(p.avg_entry_price),
+                "current_price": float(p.current_price),
+                "market_value": float(p.market_value),
+                "cost_basis": float(p.cost_basis),
+                "unrealized_pl": float(p.unrealized_pl),
+                "unrealized_plpc": float(p.unrealized_plpc),
+                "change_today": float(p.change_today),
+            }
+            for p in positions
+        ]
+    except Exception as e:
+        print(f"[Alpaca] get_positions failed: {e}")
+        return []
+
+
+def submit_order(
+    symbol: str,
+    qty: float | None = None,
+    notional: float | None = None,
+    side: str = "buy",
+    order_type: str = "market",
+    time_in_force: str = "day",
+    limit_price: float | None = None,
+    stop_price: float | None = None,
+    take_profit_price: float | None = None,
+    stop_loss_price: float | None = None,
+) -> dict | None:
+    """Submit an order to Alpaca paper trading.
+
+    Args:
+        symbol: Ticker symbol
+        qty: Number of shares (use this OR notional, not both)
+        notional: Dollar amount to buy (use this OR qty, not both)
+        side: "buy" or "sell"
+        order_type: "market", "limit", "stop", "stop_limit", "bracket"
+        time_in_force: "day", "gtc", "fok", "ioc"
+        limit_price: Required for limit/stop_limit orders
+        stop_price: Required for stop/stop_limit orders
+        take_profit_price: Take profit limit price (bracket orders)
+        stop_loss_price: Stop loss price (bracket orders)
+    """
+    if not (_alpaca_available and _trading_client):
+        return None
+
+    order_side = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+    tif_map = {
+        "day": TimeInForce.DAY,
+        "gtc": TimeInForce.GTC,
+        "fok": TimeInForce.FOK,
+        "ioc": TimeInForce.IOC,
+    }
+    tif = tif_map.get(time_in_force.lower(), TimeInForce.DAY)
+
+    # Build common kwargs
+    common = {"symbol": symbol.upper(), "side": order_side, "time_in_force": tif}
+    if qty is not None:
+        common["qty"] = qty
+    elif notional is not None:
+        common["notional"] = notional
+    else:
+        return None
+
+    try:
+        if order_type == "bracket":
+            if take_profit_price is None or stop_loss_price is None:
+                return None
+            order_data = MarketOrderRequest(
+                **common,
+                order_class=OrderClass.BRACKET,
+                take_profit=TakeProfitRequest(limit_price=take_profit_price),
+                stop_loss=StopLossRequest(stop_price=stop_loss_price),
+            )
+        elif order_type == "limit":
+            if limit_price is None:
+                return None
+            order_data = LimitOrderRequest(**common, limit_price=limit_price)
+        elif order_type == "stop":
+            if stop_price is None:
+                return None
+            order_data = StopOrderRequest(**common, stop_price=stop_price)
+        elif order_type == "stop_limit":
+            if limit_price is None or stop_price is None:
+                return None
+            order_data = StopLimitOrderRequest(
+                **common, limit_price=limit_price, stop_price=stop_price
+            )
+        else:
+            order_data = MarketOrderRequest(**common)
+
+        order = _trading_client.submit_order(order_data=order_data)
+        return {
+            "id": str(order.id),
+            "client_order_id": order.client_order_id,
+            "symbol": order.symbol,
+            "qty": str(order.qty) if order.qty else None,
+            "notional": str(order.notional) if order.notional else None,
+            "side": str(order.side),
+            "type": str(order.type),
+            "time_in_force": str(order.time_in_force),
+            "status": str(order.status),
+            "submitted_at": str(order.submitted_at),
+            "filled_at": str(order.filled_at) if order.filled_at else None,
+            "filled_avg_price": str(order.filled_avg_price) if order.filled_avg_price else None,
+            "order_class": str(order.order_class) if order.order_class else None,
+        }
+    except Exception as e:
+        print(f"[Alpaca] submit_order failed: {e}")
+        raise
+
+
+def close_position(symbol: str, qty: float | None = None, percentage: str | None = None) -> dict | None:
+    """Close a position on Alpaca (full or partial)."""
+    if not (_alpaca_available and _trading_client):
+        return None
+    try:
+        close_opts = None
+        if qty is not None:
+            close_opts = ClosePositionRequest(qty=str(qty))
+        elif percentage is not None:
+            close_opts = ClosePositionRequest(percentage=percentage)
+
+        order = _trading_client.close_position(
+            symbol.upper(),
+            close_options=close_opts,
+        )
+        return {
+            "id": str(order.id),
+            "symbol": order.symbol,
+            "qty": str(order.qty) if order.qty else None,
+            "side": str(order.side),
+            "status": str(order.status),
+            "submitted_at": str(order.submitted_at),
+        }
+    except Exception as e:
+        print(f"[Alpaca] close_position failed: {e}")
+        raise
+
+
+def get_orders(status: str = "all", limit: int = 50, symbols: list[str] | None = None) -> list[dict]:
+    """Get order history from Alpaca."""
+    if not (_alpaca_available and _trading_client):
+        return []
+    try:
+        status_map = {
+            "open": QueryOrderStatus.OPEN,
+            "closed": QueryOrderStatus.CLOSED,
+            "all": QueryOrderStatus.ALL,
+        }
+        req = GetOrdersRequest(
+            status=status_map.get(status, QueryOrderStatus.ALL),
+            limit=limit,
+        )
+        if symbols:
+            req.symbols = symbols
+
+        orders = _trading_client.get_orders(filter=req)
+        return [
+            {
+                "id": str(o.id),
+                "symbol": o.symbol,
+                "qty": str(o.qty) if o.qty else None,
+                "notional": str(o.notional) if o.notional else None,
+                "side": str(o.side),
+                "type": str(o.type),
+                "time_in_force": str(o.time_in_force),
+                "status": str(o.status),
+                "limit_price": str(o.limit_price) if o.limit_price else None,
+                "stop_price": str(o.stop_price) if o.stop_price else None,
+                "filled_avg_price": str(o.filled_avg_price) if o.filled_avg_price else None,
+                "filled_qty": str(o.filled_qty) if o.filled_qty else None,
+                "submitted_at": str(o.submitted_at),
+                "filled_at": str(o.filled_at) if o.filled_at else None,
+                "created_at": str(o.created_at),
+                "order_class": str(o.order_class) if o.order_class else None,
+            }
+            for o in orders
+        ]
+    except Exception as e:
+        print(f"[Alpaca] get_orders failed: {e}")
+        return []
+
+
+def get_portfolio_history(period: str = "1M", timeframe: str = "1D") -> dict | None:
+    """Get portfolio equity history from Alpaca."""
+    if not (_alpaca_available and _trading_client):
+        return None
+    try:
+        history = _trading_client.get_portfolio_history(
+            history_filter=GetPortfolioHistoryRequest(
+                period=period,
+                timeframe=timeframe,
+            )
+        )
+        # Build time series from parallel arrays
+        points = []
+        if history.timestamp and history.equity:
+            for i, ts in enumerate(history.timestamp):
+                points.append({
+                    "timestamp": ts,
+                    "equity": history.equity[i] if i < len(history.equity) else None,
+                    "profit_loss": history.profit_loss[i] if history.profit_loss and i < len(history.profit_loss) else None,
+                    "profit_loss_pct": history.profit_loss_pct[i] if history.profit_loss_pct and i < len(history.profit_loss_pct) else None,
+                })
+        return {
+            "base_value": history.base_value,
+            "timeframe": timeframe,
+            "points": points,
+        }
+    except Exception as e:
+        print(f"[Alpaca] get_portfolio_history failed: {e}")
+        return None

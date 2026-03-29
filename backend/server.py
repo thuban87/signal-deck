@@ -25,6 +25,12 @@ from database import (
 )
 from alpaca_client import (
     get_cached_snapshots, validate_symbol, is_alpaca_available,
+    get_account as alpaca_get_account,
+    get_positions as alpaca_get_positions,
+    submit_order as alpaca_submit_order,
+    close_position as alpaca_close_position,
+    get_orders as alpaca_get_orders,
+    get_portfolio_history as alpaca_get_portfolio_history,
 )
 from data_fetcher import fetch_stock_data
 from indicators import add_all_indicators, get_signal_summary
@@ -455,6 +461,120 @@ async def api_close_paper_trade(trade_id: int, body: dict = Body(...),
 async def api_paper_equity(user: str = Depends(verify_token)):
     """Get paper trading equity curve."""
     return get_paper_equity_curve()
+
+
+# ---------------------------------------------------------------------------
+# Alpaca Paper Trading API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/paper/account")
+async def api_paper_account(user: str = Depends(verify_token)):
+    """Get Alpaca paper account info."""
+    account = alpaca_get_account()
+    if account is None:
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    return account
+
+
+@app.get("/api/paper/positions")
+async def api_paper_positions(user: str = Depends(verify_token)):
+    """Get all open positions from Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    return alpaca_get_positions()
+
+
+@app.post("/api/paper/orders")
+async def api_paper_submit_order(body: dict = Body(...),
+                                  user: str = Depends(verify_token)):
+    """Submit an order to Alpaca paper trading."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+
+    symbol = body.get("symbol", "").upper().strip()
+    if not symbol:
+        raise HTTPException(status_code=400, detail="Symbol is required")
+
+    side = body.get("side", "buy")
+    if side not in ("buy", "sell"):
+        raise HTTPException(status_code=400, detail="Side must be 'buy' or 'sell'")
+
+    order_type = body.get("order_type", "market")
+    if order_type not in ("market", "limit", "stop", "stop_limit", "bracket"):
+        raise HTTPException(status_code=400, detail="Invalid order type")
+
+    qty = body.get("qty")
+    notional = body.get("notional")
+    if qty is not None:
+        qty = float(qty)
+    if notional is not None:
+        notional = float(notional)
+
+    if qty is None and notional is None:
+        raise HTTPException(status_code=400, detail="Either qty or notional is required")
+
+    try:
+        result = alpaca_submit_order(
+            symbol=symbol,
+            qty=qty,
+            notional=notional,
+            side=side,
+            order_type=order_type,
+            time_in_force=body.get("time_in_force", "day"),
+            limit_price=float(body["limit_price"]) if body.get("limit_price") else None,
+            stop_price=float(body["stop_price"]) if body.get("stop_price") else None,
+            take_profit_price=float(body["take_profit_price"]) if body.get("take_profit_price") else None,
+            stop_loss_price=float(body["stop_loss_price"]) if body.get("stop_loss_price") else None,
+        )
+        if result is None:
+            raise HTTPException(status_code=400, detail="Order submission failed — check parameters")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/paper/orders/history")
+async def api_paper_order_history(
+    status: str = Query("all", regex="^(open|closed|all)$"),
+    limit: int = Query(50, ge=1, le=200),
+    user: str = Depends(verify_token),
+):
+    """Get order history from Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    return alpaca_get_orders(status=status, limit=limit)
+
+
+@app.delete("/api/paper/positions/{symbol}")
+async def api_paper_close_position(symbol: str,
+                                    user: str = Depends(verify_token)):
+    """Close a position on Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    try:
+        result = alpaca_close_position(symbol.upper())
+        if result is None:
+            raise HTTPException(status_code=400, detail="Failed to close position")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/paper/portfolio-history")
+async def api_paper_portfolio_history(
+    period: str = Query("1M", regex="^(1D|1W|1M|3M|1A|all)$"),
+    timeframe: str = Query("1D", regex="^(1Min|5Min|15Min|1H|1D)$"),
+    user: str = Depends(verify_token),
+):
+    """Get portfolio equity history from Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    result = alpaca_get_portfolio_history(period=period, timeframe=timeframe)
+    if result is None:
+        raise HTTPException(status_code=503, detail="Failed to fetch portfolio history")
+    return result
 
 
 # ---------------------------------------------------------------------------
