@@ -6,6 +6,11 @@
 const Backtest = {
     chart: null,
     lastResult: null,
+    tradeSort: { column: 'entry_date', direction: 'asc' },
+    tradeFilters: { direction: 'all', exitReason: 'all', pnl: 'all' },
+    acTimer: null,
+    acResults: [],
+    acIndex: -1,
 
     async render(container, preSelectedSymbol) {
         container.innerHTML = `
@@ -17,9 +22,10 @@ const Backtest = {
             </div>
 
             <div class="backtest-controls">
-                <div class="form-group" style="margin-bottom:0">
+                <div class="form-group" style="margin-bottom:0;position:relative">
                     <label for="bt-symbol">Symbol</label>
-                    <input type="text" id="bt-symbol" value="${preSelectedSymbol || 'AAPL'}" placeholder="AAPL" style="width:120px">
+                    <input type="text" id="bt-symbol" value="${preSelectedSymbol || 'AAPL'}" placeholder="AAPL" style="width:120px" autocomplete="off">
+                    <div id="bt-autocomplete" class="autocomplete-dropdown hidden"></div>
                 </div>
                 <div class="form-group" style="margin-bottom:0">
                     <label for="bt-period">Period</label>
@@ -46,13 +52,101 @@ const Backtest = {
         `;
 
         document.getElementById('bt-run').addEventListener('click', () => this.runBacktest());
-        document.getElementById('bt-symbol').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this.runBacktest();
+
+        const symbolInput = document.getElementById('bt-symbol');
+
+        // Autocomplete: debounced search on input
+        symbolInput.addEventListener('input', (e) => {
+            clearTimeout(this.acTimer);
+            const query = e.target.value.trim();
+            if (query.length < 1) {
+                this.hideAutocomplete();
+                return;
+            }
+            this.acTimer = setTimeout(() => this.searchSymbols(query), 250);
+        });
+
+        // Keyboard navigation for autocomplete + Enter to run
+        symbolInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.acIndex = Math.min(this.acIndex + 1, this.acResults.length - 1);
+                this.highlightResult();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.acIndex = Math.max(this.acIndex - 1, -1);
+                this.highlightResult();
+            } else if (e.key === 'Enter') {
+                if (this.acIndex >= 0 && this.acResults[this.acIndex]) {
+                    this.selectSymbol(this.acResults[this.acIndex].symbol);
+                } else {
+                    this.hideAutocomplete();
+                    this.runBacktest();
+                }
+            } else if (e.key === 'Escape') {
+                this.hideAutocomplete();
+            }
+        });
+
+        // Close autocomplete on blur (delayed so click on dropdown works)
+        symbolInput.addEventListener('blur', () => {
+            setTimeout(() => this.hideAutocomplete(), 150);
         });
 
         if (preSelectedSymbol) {
             this.runBacktest();
         }
+    },
+
+    async searchSymbols(query) {
+        try {
+            this.acResults = await App.get(`/api/symbols/search?q=${encodeURIComponent(query)}&limit=8`);
+            this.acIndex = -1;
+            this.renderAutocomplete();
+        } catch (e) {
+            this.hideAutocomplete();
+        }
+    },
+
+    renderAutocomplete() {
+        const dropdown = document.getElementById('bt-autocomplete');
+        if (!dropdown || !this.acResults.length) {
+            this.hideAutocomplete();
+            return;
+        }
+        dropdown.innerHTML = this.acResults.map((r, i) => `
+            <div class="ac-item ${i === this.acIndex ? 'active' : ''}" data-index="${i}">
+                <strong>${App.escapeHtml(r.symbol)}</strong>
+                <span style="margin-left:8px;font-size:0.8rem;color:var(--text-secondary)">${App.escapeHtml(r.name)}</span>
+            </div>
+        `).join('');
+        dropdown.classList.remove('hidden');
+
+        dropdown.querySelectorAll('.ac-item').forEach(item => {
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                this.selectSymbol(this.acResults[parseInt(item.dataset.index)].symbol);
+            });
+        });
+    },
+
+    selectSymbol(symbol) {
+        document.getElementById('bt-symbol').value = symbol;
+        this.hideAutocomplete();
+    },
+
+    hideAutocomplete() {
+        const dropdown = document.getElementById('bt-autocomplete');
+        if (dropdown) dropdown.classList.add('hidden');
+        this.acResults = [];
+        this.acIndex = -1;
+    },
+
+    highlightResult() {
+        const items = document.querySelectorAll('#bt-autocomplete .ac-item');
+        items.forEach((item, i) => {
+            item.classList.toggle('active', i === this.acIndex);
+        });
     },
 
     async runBacktest() {
@@ -74,6 +168,8 @@ const Backtest = {
         try {
             const data = await App.get(`/api/backtest/${symbol}?period=${period}&include_bearish=${includeBearish}`);
             this.lastResult = data;
+            this.tradeFilters = { direction: 'all', exitReason: 'all', pnl: 'all' };
+            this.tradeSort = { column: 'entry_date', direction: 'asc' };
             this.renderResults(data);
         } catch (err) {
             resultsArea.innerHTML = `
@@ -93,6 +189,9 @@ const Backtest = {
         const edgeColor = data.edge >= 0 ? 'positive' : 'negative';
         const pnlColor = data.total_pnl >= 0 ? 'positive' : 'negative';
         const bhColor = data.buy_hold_pct >= 0 ? 'positive' : 'negative';
+
+        // Get unique exit reasons for filter dropdown
+        const exitReasons = [...new Set(data.trades.map(t => t.exit_reason))].sort();
 
         resultsArea.innerHTML = `
             <div class="backtest-results">
@@ -131,53 +230,145 @@ const Backtest = {
                 <div class="equity-chart-area" id="equity-chart"></div>
             </div>
 
-            <div class="card">
+            <div class="card" id="bt-trade-log-card">
                 <div class="card-header">
                     <h3>Trade Log</h3>
-                    <span style="font-size:0.75rem;color:var(--text-muted)">${data.trades.length} trades</span>
+                    <span id="bt-trade-count" style="font-size:0.75rem;color:var(--text-muted)">${data.trades.length} trades</span>
                 </div>
-                <div class="signals-table-wrap">
-                    <table class="signals-table">
-                        <thead>
-                            <tr>
-                                <th>Entry</th>
-                                <th>Exit</th>
-                                <th>Dir</th>
-                                <th>Signal</th>
-                                <th>Entry $</th>
-                                <th>Exit $</th>
-                                <th>P&L</th>
-                                <th>Exit</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.trades.map(t => {
-                                const isWin = t.pnl_pct > 0;
-                                const rowClass = t.direction === 'short' ? 'bearish-row' : 'bullish-row';
-                                const dirLabel = t.direction === 'short' ? 'SHORT' : 'LONG';
-                                const dirClass = t.direction === 'short' ? 'sell' : 'buy';
-                                const pnlClass = isWin ? 'text-green' : 'text-red';
-
-                                return `
-                                    <tr class="${rowClass}">
-                                        <td class="text-mono">${t.entry_date}</td>
-                                        <td class="text-mono">${t.exit_date}</td>
-                                        <td><span class="direction-badge ${dirClass}">${dirLabel}</span></td>
-                                        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${App.escapeHtml(t.signal)}">${App.escapeHtml(t.signal)}</td>
-                                        <td class="text-mono">${App.formatPrice(t.entry_price)}</td>
-                                        <td class="text-mono">${App.formatPrice(t.exit_price)}</td>
-                                        <td class="text-mono ${pnlClass} font-bold">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct}%</td>
-                                        <td class="text-muted">${t.exit_reason}</td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
+                <div class="filter-bar" style="margin-bottom:8px">
+                    <select id="bt-filter-direction">
+                        <option value="all">All Directions</option>
+                        <option value="long">Long Only</option>
+                        <option value="short">Short Only</option>
+                    </select>
+                    <select id="bt-filter-exit">
+                        <option value="all">All Exits</option>
+                        ${exitReasons.map(r => `<option value="${App.escapeHtml(r)}">${App.escapeHtml(r)}</option>`).join('')}
+                    </select>
+                    <select id="bt-filter-pnl">
+                        <option value="all">All Trades</option>
+                        <option value="win">Winners</option>
+                        <option value="loss">Losers</option>
+                    </select>
                 </div>
+                <div class="signals-table-wrap" id="bt-trade-log-wrap"></div>
             </div>
         `;
 
+        // Wire up trade log filter listeners
+        ['bt-filter-direction', 'bt-filter-exit', 'bt-filter-pnl'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => {
+                this.tradeFilters.direction = document.getElementById('bt-filter-direction').value;
+                this.tradeFilters.exitReason = document.getElementById('bt-filter-exit').value;
+                this.tradeFilters.pnl = document.getElementById('bt-filter-pnl').value;
+                this.renderTradeLog();
+            });
+        });
+
+        this.renderTradeLog();
         this.renderEquityChart(data.equity_curve);
+    },
+
+    renderTradeLog() {
+        const wrap = document.getElementById('bt-trade-log-wrap');
+        if (!wrap || !this.lastResult) return;
+
+        let trades = [...this.lastResult.trades];
+
+        // Apply filters
+        if (this.tradeFilters.direction !== 'all') {
+            trades = trades.filter(t => t.direction === this.tradeFilters.direction);
+        }
+        if (this.tradeFilters.exitReason !== 'all') {
+            trades = trades.filter(t => t.exit_reason === this.tradeFilters.exitReason);
+        }
+        if (this.tradeFilters.pnl === 'win') {
+            trades = trades.filter(t => t.pnl_pct > 0);
+        } else if (this.tradeFilters.pnl === 'loss') {
+            trades = trades.filter(t => t.pnl_pct <= 0);
+        }
+
+        // Sort
+        const col = this.tradeSort.column;
+        const dir = this.tradeSort.direction;
+        trades.sort((a, b) => {
+            let valA = a[col], valB = b[col];
+            if (col === 'entry_price' || col === 'exit_price' || col === 'pnl_pct') {
+                valA = Number(valA) || 0;
+                valB = Number(valB) || 0;
+            } else {
+                valA = String(valA || '').toLowerCase();
+                valB = String(valB || '').toLowerCase();
+            }
+            if (valA < valB) return dir === 'asc' ? -1 : 1;
+            if (valA > valB) return dir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        // Update count
+        const countEl = document.getElementById('bt-trade-count');
+        if (countEl) {
+            const total = this.lastResult.trades.length;
+            countEl.textContent = trades.length === total ? `${total} trades` : `${trades.length} of ${total} trades`;
+        }
+
+        const arrow = (c) => {
+            if (this.tradeSort.column !== c) return '<span class="sort-arrow">\u2195</span>';
+            return `<span class="sort-arrow">${this.tradeSort.direction === 'asc' ? '\u25B2' : '\u25BC'}</span>`;
+        };
+        const ac = (c) => this.tradeSort.column === c ? 'active' : '';
+
+        wrap.innerHTML = `
+            <table class="signals-table">
+                <thead>
+                    <tr>
+                        <th class="sortable ${ac('entry_date')}" data-sort="entry_date">Entry ${arrow('entry_date')}</th>
+                        <th class="sortable ${ac('exit_date')}" data-sort="exit_date">Exit ${arrow('exit_date')}</th>
+                        <th class="sortable ${ac('direction')}" data-sort="direction">Dir ${arrow('direction')}</th>
+                        <th>Signal</th>
+                        <th class="sortable ${ac('entry_price')}" data-sort="entry_price">Entry $ ${arrow('entry_price')}</th>
+                        <th class="sortable ${ac('exit_price')}" data-sort="exit_price">Exit $ ${arrow('exit_price')}</th>
+                        <th class="sortable ${ac('pnl_pct')}" data-sort="pnl_pct">P&L ${arrow('pnl_pct')}</th>
+                        <th class="sortable ${ac('exit_reason')}" data-sort="exit_reason">Exit ${arrow('exit_reason')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${trades.map(t => {
+                        const isWin = t.pnl_pct > 0;
+                        const rowClass = t.direction === 'short' ? 'bearish-row' : 'bullish-row';
+                        const dirLabel = t.direction === 'short' ? 'SHORT' : 'LONG';
+                        const dirClass = t.direction === 'short' ? 'sell' : 'buy';
+                        const pnlClass = isWin ? 'text-green' : 'text-red';
+
+                        return `
+                            <tr class="${rowClass}">
+                                <td class="text-mono">${t.entry_date}</td>
+                                <td class="text-mono">${t.exit_date}</td>
+                                <td><span class="direction-badge ${dirClass}">${dirLabel}</span></td>
+                                <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${App.escapeHtml(t.signal)}">${App.escapeHtml(t.signal)}</td>
+                                <td class="text-mono">${App.formatPrice(t.entry_price)}</td>
+                                <td class="text-mono">${App.formatPrice(t.exit_price)}</td>
+                                <td class="text-mono ${pnlClass} font-bold">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct}%</td>
+                                <td class="text-muted">${t.exit_reason}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+
+        // Sortable column headers
+        wrap.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const c = th.dataset.sort;
+                if (this.tradeSort.column === c) {
+                    this.tradeSort.direction = this.tradeSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.tradeSort = { column: c, direction: 'asc' };
+                }
+                this.renderTradeLog();
+            });
+        });
     },
 
     renderEquityChart(curve) {
@@ -228,7 +419,11 @@ const Backtest = {
             crosshairMarkerVisible: false,
         });
 
-        const lineData = curve.map(c => ({ time: c.date, value: c.cumulative }));
+        const rawData = curve.map(c => ({ time: c.date, value: c.cumulative }));
+        // Deduplicate by time (LightweightCharts requires unique timestamps)
+        const deduped = {};
+        rawData.forEach(p => { deduped[p.time] = p; });
+        const lineData = Object.values(deduped);
         series.setData(lineData);
 
         if (lineData.length >= 2) {

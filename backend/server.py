@@ -25,6 +25,7 @@ from database import (
 )
 from alpaca_client import (
     get_cached_snapshots, validate_symbol, is_alpaca_available,
+    search_assets,
     get_account as alpaca_get_account,
     get_positions as alpaca_get_positions,
     submit_order as alpaca_submit_order,
@@ -183,6 +184,16 @@ async def api_remove_from_watchlist(symbol: str,
     if not removed:
         raise HTTPException(status_code=404, detail=f"{symbol} not in watchlist")
     return {"symbol": symbol.upper(), "removed": True}
+
+
+@app.get("/api/symbols/search")
+async def api_search_symbols(
+    q: str = Query("", min_length=1, max_length=10),
+    limit: int = Query(10, ge=1, le=50),
+    user: str = Depends(verify_token),
+):
+    """Search for symbols by partial ticker or company name."""
+    return search_assets(q, limit=limit)
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +364,7 @@ async def api_backtest(symbol: str,
         total_pnl = avg_pnl = win_rate = 0
         long_trades = short_trades = []
 
-    # Equity curve
+    # Equity curve — deduplicate by date (LightweightCharts requires unique timestamps)
     equity = []
     cumulative = 0
     for t in sorted(serialized, key=lambda x: x["exit_date"]):
@@ -363,6 +374,10 @@ async def api_backtest(symbol: str,
             "pnl": t["pnl_pct"],
             "cumulative": round(cumulative, 2),
         })
+    seen = {}
+    for point in equity:
+        seen[point["date"]] = point
+    equity = list(seen.values())
 
     return {
         "symbol": symbol,

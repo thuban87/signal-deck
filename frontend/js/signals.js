@@ -6,6 +6,10 @@
 const Signals = {
     data: [],
     filters: { direction: 'all', days: 7 },
+    sortColumn: 'date',
+    sortDirection: 'desc',
+    symbolFilter: '',
+    signalFilter: '',
 
     async render(container) {
         container.innerHTML = `
@@ -28,6 +32,8 @@ const Signals = {
                     <option value="14">Last 14 Days</option>
                     <option value="30">Last 30 Days</option>
                 </select>
+                <input type="text" id="signal-filter-symbol" placeholder="Filter symbol..." style="width:120px">
+                <input type="text" id="signal-filter-signal" placeholder="Filter signal..." style="width:160px">
                 <button class="btn btn-ghost btn-sm" id="signal-refresh-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
                         <polyline points="23 4 23 10 17 10"></polyline>
@@ -55,6 +61,16 @@ const Signals = {
             this.loadData();
         });
 
+        document.getElementById('signal-filter-symbol').addEventListener('input', (e) => {
+            this.symbolFilter = e.target.value.trim().toUpperCase();
+            this.renderTable();
+        });
+
+        document.getElementById('signal-filter-signal').addEventListener('input', (e) => {
+            this.signalFilter = e.target.value.trim().toLowerCase();
+            this.renderTable();
+        });
+
         document.getElementById('signal-refresh-btn').addEventListener('click', () => this.loadData());
 
         await this.loadData();
@@ -76,11 +92,37 @@ const Signals = {
 
     renderTable() {
         const container = document.getElementById('signals-table-container');
-        let signals = this.data || [];
+        let signals = [...(this.data || [])];
 
+        // Direction filter
         if (this.filters.direction !== 'all') {
             signals = signals.filter(s => s.direction === this.filters.direction);
         }
+        // Symbol filter
+        if (this.symbolFilter) {
+            signals = signals.filter(s => s.symbol.toUpperCase().includes(this.symbolFilter));
+        }
+        // Signal name filter
+        if (this.signalFilter) {
+            signals = signals.filter(s => s.signal.toLowerCase().includes(this.signalFilter));
+        }
+
+        // Sort
+        const col = this.sortColumn;
+        const dir = this.sortDirection;
+        signals.sort((a, b) => {
+            let valA = a[col], valB = b[col];
+            if (col === 'price' || col === 'days_ago') {
+                valA = Number(valA) || 0;
+                valB = Number(valB) || 0;
+            } else {
+                valA = String(valA || '').toLowerCase();
+                valB = String(valB || '').toLowerCase();
+            }
+            if (valA < valB) return dir === 'asc' ? -1 : 1;
+            if (valA > valB) return dir === 'asc' ? 1 : -1;
+            return 0;
+        });
 
         if (signals.length === 0) {
             container.innerHTML = `
@@ -95,16 +137,22 @@ const Signals = {
             return;
         }
 
+        const arrow = (col) => {
+            if (this.sortColumn !== col) return '<span class="sort-arrow">\u2195</span>';
+            return `<span class="sort-arrow">${this.sortDirection === 'asc' ? '\u25B2' : '\u25BC'}</span>`;
+        };
+        const activeClass = (col) => this.sortColumn === col ? 'active' : '';
+
         container.innerHTML = `
             <table class="signals-table">
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Symbol</th>
-                        <th>Direction</th>
-                        <th>Signal</th>
-                        <th>Price</th>
-                        <th>Age</th>
+                        <th class="sortable ${activeClass('date')}" data-sort="date">Date ${arrow('date')}</th>
+                        <th class="sortable ${activeClass('symbol')}" data-sort="symbol">Symbol ${arrow('symbol')}</th>
+                        <th class="sortable ${activeClass('direction')}" data-sort="direction">Direction ${arrow('direction')}</th>
+                        <th class="sortable ${activeClass('signal')}" data-sort="signal">Signal ${arrow('signal')}</th>
+                        <th class="sortable ${activeClass('price')}" data-sort="price">Price ${arrow('price')}</th>
+                        <th class="sortable ${activeClass('days_ago')}" data-sort="days_ago">Age ${arrow('days_ago')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -134,6 +182,20 @@ const Signals = {
         container.querySelectorAll('tbody tr').forEach(row => {
             row.addEventListener('click', () => {
                 App.navigate(`#/stock/${row.dataset.symbol}`);
+            });
+        });
+
+        // Sortable column headers
+        container.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.sort;
+                if (this.sortColumn === col) {
+                    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.sortColumn = col;
+                    this.sortDirection = col === 'date' ? 'desc' : 'asc';
+                }
+                this.renderTable();
             });
         });
     },

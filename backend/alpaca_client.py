@@ -490,3 +490,101 @@ def get_portfolio_history(period: str = "1M", timeframe: str = "1D") -> dict | N
     except Exception as e:
         print(f"[Alpaca] get_portfolio_history failed: {e}")
         return None
+
+
+# ---------------------------------------------------------------------------
+# Symbol Search / Autocomplete
+# ---------------------------------------------------------------------------
+
+_asset_cache: list[dict] | None = None
+_asset_cache_time: float = 0
+
+_FALLBACK_SYMBOLS = [
+    {"symbol": s, "name": n, "exchange": ""}
+    for s, n in [
+        ("AAPL", "Apple Inc"), ("MSFT", "Microsoft Corp"), ("GOOGL", "Alphabet Inc"),
+        ("GOOG", "Alphabet Inc Class C"), ("AMZN", "Amazon.com Inc"), ("NVDA", "NVIDIA Corp"),
+        ("META", "Meta Platforms Inc"), ("TSLA", "Tesla Inc"), ("JPM", "JPMorgan Chase & Co"),
+        ("V", "Visa Inc"), ("JNJ", "Johnson & Johnson"), ("WMT", "Walmart Inc"),
+        ("PG", "Procter & Gamble Co"), ("MA", "Mastercard Inc"), ("HD", "Home Depot Inc"),
+        ("DIS", "Walt Disney Co"), ("BAC", "Bank of America Corp"), ("XOM", "Exxon Mobil Corp"),
+        ("COST", "Costco Wholesale Corp"), ("KO", "Coca-Cola Co"), ("PEP", "PepsiCo Inc"),
+        ("NFLX", "Netflix Inc"), ("AMD", "Advanced Micro Devices"), ("INTC", "Intel Corp"),
+        ("CRM", "Salesforce Inc"), ("ORCL", "Oracle Corp"), ("CSCO", "Cisco Systems Inc"),
+        ("ADBE", "Adobe Inc"), ("ACN", "Accenture PLC"), ("TXN", "Texas Instruments"),
+        ("QCOM", "Qualcomm Inc"), ("AVGO", "Broadcom Inc"), ("INTU", "Intuit Inc"),
+        ("AMAT", "Applied Materials"), ("MU", "Micron Technology"), ("LRCX", "Lam Research"),
+        ("PANW", "Palo Alto Networks"), ("SNPS", "Synopsys Inc"), ("CDNS", "Cadence Design"),
+        ("MRVL", "Marvell Technology"), ("KLAC", "KLA Corp"), ("PYPL", "PayPal Holdings"),
+        ("SQ", "Block Inc"), ("SHOP", "Shopify Inc"), ("UBER", "Uber Technologies"),
+        ("ABNB", "Airbnb Inc"), ("COIN", "Coinbase Global"), ("PLTR", "Palantir Technologies"),
+        ("NET", "Cloudflare Inc"), ("DDOG", "Datadog Inc"), ("SNOW", "Snowflake Inc"),
+        ("SPY", "SPDR S&P 500 ETF"), ("QQQ", "Invesco QQQ Trust"),
+        ("IWM", "iShares Russell 2000 ETF"), ("DIA", "SPDR Dow Jones ETF"),
+        ("GLD", "SPDR Gold Shares"), ("SLV", "iShares Silver Trust"),
+        ("T", "AT&T Inc"), ("VZ", "Verizon Communications"), ("TMUS", "T-Mobile US"),
+        ("UNH", "UnitedHealth Group"), ("PFE", "Pfizer Inc"), ("MRK", "Merck & Co"),
+        ("ABBV", "AbbVie Inc"), ("LLY", "Eli Lilly & Co"), ("TMO", "Thermo Fisher Scientific"),
+        ("ABT", "Abbott Laboratories"), ("DHR", "Danaher Corp"), ("BMY", "Bristol-Myers Squibb"),
+        ("AMGN", "Amgen Inc"), ("GILD", "Gilead Sciences"), ("ISRG", "Intuitive Surgical"),
+        ("BA", "Boeing Co"), ("CAT", "Caterpillar Inc"), ("DE", "Deere & Co"),
+        ("GE", "GE Aerospace"), ("HON", "Honeywell International"), ("LMT", "Lockheed Martin"),
+        ("RTX", "RTX Corp"), ("UPS", "United Parcel Service"), ("FDX", "FedEx Corp"),
+        ("WM", "Waste Management"), ("GS", "Goldman Sachs"), ("MS", "Morgan Stanley"),
+        ("C", "Citigroup Inc"), ("BLK", "BlackRock Inc"), ("SCHW", "Charles Schwab"),
+        ("AXP", "American Express"), ("USB", "US Bancorp"), ("PNC", "PNC Financial"),
+        ("F", "Ford Motor Co"), ("GM", "General Motors"), ("RIVN", "Rivian Automotive"),
+        ("NKE", "Nike Inc"), ("SBUX", "Starbucks Corp"), ("MCD", "McDonald's Corp"),
+        ("CMG", "Chipotle Mexican Grill"), ("LOW", "Lowe's Companies"),
+        ("TGT", "Target Corp"), ("AMZN", "Amazon.com Inc"),
+    ]
+]
+
+
+def _load_asset_list() -> list[dict]:
+    """Load all tradeable US equity assets from Alpaca, or fallback to static list."""
+    if _alpaca_available and _trading_client:
+        try:
+            from alpaca.trading.enums import AssetStatus
+            req = GetAssetsRequest(
+                asset_class=AssetClass.US_EQUITY,
+                status=AssetStatus.ACTIVE,
+            )
+            assets = _trading_client.get_all_assets(req)
+            result = [
+                {"symbol": a.symbol, "name": a.name or a.symbol, "exchange": str(a.exchange) if a.exchange else ""}
+                for a in assets
+                if a.tradable and a.symbol.isalpha()
+            ]
+            if result:
+                print(f"[Alpaca] Loaded {len(result)} tradeable assets for search")
+                return result
+        except Exception as e:
+            print(f"[Alpaca] Asset list fetch failed: {e}, using fallback")
+
+    return _FALLBACK_SYMBOLS
+
+
+def search_assets(query: str, limit: int = 10) -> list[dict]:
+    """Search for tradeable assets matching a partial symbol or name."""
+    global _asset_cache, _asset_cache_time
+
+    now = time.time()
+    if _asset_cache is None or (now - _asset_cache_time) > 86400:
+        _asset_cache = _load_asset_list()
+        _asset_cache_time = now
+
+    query = query.upper().strip()
+    if not query:
+        return []
+
+    prefix_matches = []
+    contains_matches = []
+    for asset in _asset_cache:
+        if asset["symbol"].startswith(query):
+            prefix_matches.append(asset)
+        elif query in asset["name"].upper():
+            contains_matches.append(asset)
+
+    results = prefix_matches + contains_matches
+    return results[:limit]

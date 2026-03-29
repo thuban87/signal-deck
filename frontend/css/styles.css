@@ -684,6 +684,55 @@ a:hover { color: var(--text-primary); }
 
 .stock-card-delete svg { width: 14px; height: 14px; }
 
+/* Dashboard toolbar */
+.dashboard-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    background: var(--bg-surface);
+}
+
+.view-btn.active {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
+/* Compact view */
+.watchlist-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.compact-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.compact-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+}
+
 /* ---------------------------------------------------------------------------
    Signal Alert Bar
    --------------------------------------------------------------------------- */
@@ -794,6 +843,25 @@ a:hover { color: var(--text-primary); }
 .direction-badge.short {
     color: var(--red);
     background: var(--red-dim);
+}
+
+/* Sortable table headers */
+.signals-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--transition-fast);
+}
+.signals-table th.sortable:hover {
+    color: var(--text-primary);
+}
+.sort-arrow {
+    font-size: 0.65rem;
+    margin-left: 4px;
+    opacity: 0.4;
+}
+.signals-table th.sortable.active .sort-arrow {
+    opacity: 1;
+    color: var(--blue);
 }
 
 /* Filter bar */
@@ -981,6 +1049,41 @@ a:hover { color: var(--text-primary); }
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
     margin-bottom: 24px;
+}
+
+/* Autocomplete dropdown */
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 280px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.ac-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    transition: background var(--transition-fast);
+}
+
+.ac-item:hover,
+.ac-item.active {
+    background: var(--bg-card-hover);
+}
+
+.ac-item strong {
+    font-family: var(--font-mono);
+    min-width: 60px;
 }
 
 .stat-card {
@@ -1473,6 +1576,16 @@ a:hover { color: var(--text-primary); }
 
     .watchlist-grid {
         grid-template-columns: 1fr;
+    }
+
+    .dashboard-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .compact-card {
+        flex-wrap: wrap;
+        gap: 8px;
     }
 
     .backtest-controls {
