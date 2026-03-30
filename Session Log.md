@@ -898,3 +898,93 @@ Changed:
 ### Next Session Prompt:
 
 > Stock detail page completely rewritten with gridstack.js widget system — 15 draggable/resizable widgets with global layout persistence. New widgets: Related Stocks (Finnhub peers), Insider Trading, Social Trending (Reddit), Trade Calculator. Chart now has OHLCV hover tooltip. Company name shows in header. EasyMDE notes editor has dark mode CSS. Two new backend endpoints: /api/stock/{symbol}/peers and /api/stock/{symbol}/social. All tested and working on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.
+
+---
+
+## 2026-03-30 (Session 3) — Mobile UX Overhaul
+
+**Focus:** Comprehensive mobile improvements — replaced always-visible sidebar with hamburger menu + drawer, separated mobile/desktop layout persistence, fixed overflow and layout issues across all pages, added touch-friendly scroll handle for gridstack edit mode.
+
+### Completed:
+
+#### Mobile Navigation — Hamburger Menu + Sidebar Drawer (`index.html`, `styles.css`, `app.js`)
+- [x] Replaced thin always-visible sidebar on mobile with a floating hamburger menu button (☰)
+- [x] Sidebar slides in from the left as an 80vw drawer overlay on tap
+- [x] Semi-transparent backdrop overlay — tap outside to close
+- [x] Nav items auto-close drawer on selection
+- [x] Hamburger button only visible at ≤768px breakpoint
+- [x] Desktop sidebar behavior unchanged
+
+#### Separate Mobile / Desktop Layout Persistence (`dashboard.js`, `stock.js`)
+- [x] New localStorage keys: `sd_dashboard_layout_mobile` and `sd_stock_detail_layout_mobile`
+- [x] `getLayoutKey()` helper in both modules — returns mobile or desktop key based on `App.isMobile()` (matchMedia check)
+- [x] Mobile and desktop can have completely independent widget arrangements
+- [x] Reset Layout respects current device — only clears the active key
+
+#### Dashboard Header Reflow (`styles.css`)
+- [x] Page title centers on its own line at ≤768px
+- [x] Action buttons (Customize, Reset Layout) wrap to a row below the title
+- [x] Prevents header from being too wide or clipping on small screens
+
+#### Gridstack Edit Mode — Scroll Handle (`dashboard.js`, `stock.js`, `styles.css`)
+- [x] Fixed bottom bar appears during edit mode with ▲ / ▼ scroll buttons
+- [x] Press-and-hold triggers continuous scrolling of `#main-content`
+- [x] Solves the problem of not being able to scroll while dragging widgets on touch devices
+- [x] Auto-removed when exiting edit mode
+
+#### Paper Trading Overflow Fix (`styles.css`)
+- [x] Paper trading cards and tables constrained to viewport width
+- [x] `overflow-x: auto` on table wrappers prevents horizontal page scroll
+- [x] Column layout stacks on mobile
+
+#### Stock Detail Header Wrap (`styles.css`)
+- [x] Stock detail header elements wrap properly on narrow screens
+- [x] Action buttons flow below the title/price area
+
+#### Investigator Page Overflow Fix (`styles.css`)
+- [x] Investigation sections constrained with `overflow: hidden` / `overflow-x: auto`
+- [x] Tables get `max-width: calc(100vw - 32px)` to prevent horizontal blowout
+- [x] News cards and sentiment sections stack cleanly
+
+#### Bottom Cutoff Fix — All Pages (`styles.css`)
+- [x] App container uses `min-height: 100dvh` (dynamic viewport height) instead of `100vh`
+- [x] Accounts for mobile browser chrome (address bar, bottom nav)
+- [x] Added `padding-bottom: 32px` to main content for breathing room
+
+#### Cache Busting (`index.html`)
+- [x] All CSS/JS `<link>` and `<script>` tags updated with `?v=3` query string
+- [x] Forces mobile browsers to fetch updated assets instead of serving stale cache
+
+### Files Changed:
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `frontend/index.html` | Modified | Hamburger button + sidebar overlay HTML, cache-bust `?v=3` on all static refs |
+| `frontend/css/styles.css` | Modified | ~150 lines: hamburger-btn, sidebar-overlay, drawer styles, dashboard header reflow, scroll handle, paper trading overflow, stock detail header wrap, investigator overflow, bottom cutoff fix, card/table containment |
+| `frontend/js/app.js` | Modified | `closeMobileSidebar()`, `isMobile()`, hamburger toggle listeners, nav-item close-on-click |
+| `frontend/js/dashboard.js` | Modified | `LAYOUT_KEY_MOBILE`, `getLayoutKey()`, `showScrollHandle()`, `hideScrollHandle()` |
+| `frontend/js/stock.js` | Modified | Same as dashboard.js — mobile layout key + scroll handle methods |
+
+### Testing Notes:
+
+- ✅ Hamburger menu opens/closes drawer correctly on mobile
+- ✅ Overlay backdrop dismisses sidebar on tap
+- ✅ Nav items close sidebar and navigate
+- ✅ Desktop layout completely unaffected (hamburger hidden, sidebar static)
+- ✅ Dashboard and stock detail save/restore separate layouts per device
+- ✅ Scroll handle appears in edit mode, scrolls smoothly, removed on exit
+- ✅ No horizontal overflow on Paper Trading, Investigator, or Stock Detail pages
+- ✅ Bottom content no longer cut off on mobile browsers
+- ✅ Cache bust forces fresh asset load on real devices
+- ✅ No JS/CSS errors in any modified files
+
+### Next Steps:
+
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support (4h, 1h candles)
+- [ ] Alert notifications (email/push when signals fire)
+- [ ] Deploy to Linux server (Nginx + systemd)
+
+### Next Session Prompt:
+
+> Mobile UX overhaul complete. Sidebar replaced with hamburger menu + 80vw drawer overlay. Dashboard and stock detail have separate mobile/desktop layout persistence via `getLayoutKey()`. Gridstack edit mode has a scroll handle bar for touch devices. Overflow fixed across Paper Trading, Investigator, Stock Detail. Bottom cutoff fixed with `100dvh` + padding. All static assets cache-busted at `?v=3`. Server runs on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.

@@ -231,13 +231,14 @@ Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** f
 - **6 widgets:** Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
 - **Edit mode:** "Customize" button toggles drag/resize with visual handles
 - **Min sizes:** enforced per widget (e.g., watchlist ≥ 6 cols, quick-log ≥ 3 cols)
-- **Persistence:** layout auto-saved to `localStorage` key `sd_dashboard_layout`, restored on page load
-- **Reset:** "Reset Layout" button clears saved layout and reverts to defaults
+- **Persistence:** layout auto-saved to `localStorage`, restored on page load
+- **Separate mobile/desktop layouts:** `sd_dashboard_layout` (desktop) and `sd_dashboard_layout_mobile` (mobile) via `getLayoutKey()` helper
+- **Reset:** "Reset Layout" button clears saved layout for the current device and reverts to defaults
 
 ### Stock Detail Widgets
 - **15 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
 - **Edit mode:** same UX as dashboard — "Customize" button with drag/resize handles
-- **Global layout:** saved to `localStorage` key `sd_stock_detail_layout` (shared across all symbols)
+- **Global layout:** saved to `localStorage` keys `sd_stock_detail_layout` / `sd_stock_detail_layout_mobile` (shared across all symbols, separate per device)
 - **Chart hover tooltip:** OHLCV values displayed on crosshair move
 - **Company name:** displayed in header below symbol, populated from fundamentals API
 - **Related Stocks:** Finnhub peers API with daily % change and clickable links
@@ -245,6 +246,16 @@ Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** f
 - **Social Trending:** Reddit mentions with sentiment, or empty state when not configured
 - **Indicators flow:** CSS grid with auto-fit wrap, reflows when widget is resized
 - **EasyMDE dark mode:** comprehensive CSS overrides for the Markdown notes editor
+
+### Mobile
+- **Scroll handle:** fixed bottom bar with ▲/▼ buttons appears during edit mode for touch-device scrolling
+- **`App.isMobile()`** — `matchMedia('(max-width: 768px)')` check used by `getLayoutKey()` in both modules
+
+---
+
+## Mobile Navigation
+
+At ≤768px, the sidebar is hidden and replaced with a **hamburger menu button** (☰) that opens the sidebar as an **80vw drawer overlay** from the left. A semi-transparent backdrop overlay closes the drawer on tap. Nav items auto-close the drawer on selection. Desktop sidebar behavior is unchanged.
 
 ---
 
@@ -344,6 +355,11 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Insider trading widget on stock detail (light copy from Investigator)
 - [x] Social trending widget with Reddit empty state
 - [x] EasyMDE dark mode CSS
+- [x] Mobile hamburger menu + sidebar drawer (replaces thin sidebar at ≤768px)
+- [x] Separate mobile/desktop layout persistence (dashboard + stock detail)
+- [x] Mobile scroll handle for gridstack edit mode
+- [x] Mobile overflow fixes (Paper Trading, Investigator, Stock Detail)
+- [x] Bottom cutoff fix (`100dvh` + padding)
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)
 - [ ] Alert notifications (email/push when signals fire)
