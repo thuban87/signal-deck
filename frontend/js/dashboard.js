@@ -349,6 +349,7 @@ const Dashboard = {
             editBtn.classList.add('active');
             this.grid.enableMove(true);
             this.grid.enableResize(true);
+            this.showScrollHandle();
         } else {
             bar.classList.add('hidden');
             gridEl.classList.remove('gs-edit-mode');
@@ -356,7 +357,48 @@ const Dashboard = {
             this.grid.enableMove(false);
             this.grid.enableResize(false);
             this.saveLayout();
+            this.hideScrollHandle();
         }
+    },
+
+    showScrollHandle() {
+        if (!App.isMobile()) return;
+        if (document.getElementById('gs-scroll-handle')) return;
+        const handle = document.createElement('div');
+        handle.id = 'gs-scroll-handle';
+        handle.className = 'gs-scroll-handle';
+        handle.style.display = 'block';
+        handle.innerHTML = `
+            <div class="gs-scroll-handle-inner">
+                <button class="gs-scroll-btn" id="gs-scroll-up">&#9650;</button>
+                <span class="gs-scroll-label">Scroll</span>
+                <button class="gs-scroll-btn" id="gs-scroll-down">&#9660;</button>
+            </div>
+        `;
+        document.body.appendChild(handle);
+
+        let scrollInterval = null;
+        const mainContent = document.getElementById('main-content');
+        const startScroll = (dir) => {
+            scrollInterval = setInterval(() => {
+                mainContent.scrollBy({ top: dir * 80 });
+            }, 100);
+        };
+        const stopScroll = () => { clearInterval(scrollInterval); scrollInterval = null; };
+
+        const upBtn = document.getElementById('gs-scroll-up');
+        const downBtn = document.getElementById('gs-scroll-down');
+        upBtn.addEventListener('mousedown', () => startScroll(-1));
+        upBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startScroll(-1); }, { passive: false });
+        downBtn.addEventListener('mousedown', () => startScroll(1));
+        downBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startScroll(1); }, { passive: false });
+        document.addEventListener('mouseup', stopScroll);
+        document.addEventListener('touchend', stopScroll);
+    },
+
+    hideScrollHandle() {
+        const handle = document.getElementById('gs-scroll-handle');
+        if (handle) handle.remove();
     },
 
     saveLayout() {
