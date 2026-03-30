@@ -1,7 +1,6 @@
 /* =====================================================================
    Signal Deck — Stock Detail Page
    Full analysis with candlestick chart, indicators, and LLM analysis
-   Gridstack-powered draggable/resizable widget layout
    ===================================================================== */
 
 const StockDetail = {
@@ -10,36 +9,10 @@ const StockDetail = {
     calcPickMode: null,   // null, 'entry', or 'exit'
     calcChart: null,
     notesEditor: null,
-    grid: null,
-    editMode: false,
-    currentData: null,
-    tooltipEl: null,
-
-    // Widget definitions — id, title, default grid position, min sizes
-    widgetDefs: [
-        { id: 'chart',            title: 'Price Chart',           defaultX: 0,  defaultY: 0,  defaultW: 8,  defaultH: 9,  minW: 4, minH: 6 },
-        { id: 'indicators',       title: 'Indicators',            defaultX: 8,  defaultY: 0,  defaultW: 4,  defaultH: 9,  minW: 3, minH: 4 },
-        { id: 'action-card',      title: 'Signal Recommendation', defaultX: 0,  defaultY: 9,  defaultW: 4,  defaultH: 2,  minW: 3, minH: 2 },
-        { id: 'earnings-warning', title: 'Earnings',              defaultX: 4,  defaultY: 9,  defaultW: 4,  defaultH: 2,  minW: 3, minH: 2 },
-        { id: 'related-stocks',   title: 'Related Stocks',        defaultX: 8,  defaultY: 9,  defaultW: 4,  defaultH: 2,  minW: 3, minH: 2 },
-        { id: 'signals-list',     title: 'Active Signals',        defaultX: 0,  defaultY: 11, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
-        { id: 'fundamentals',     title: 'Fundamentals',          defaultX: 6,  defaultY: 11, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
-        { id: 'insider-trading',  title: 'Insider Trading',       defaultX: 0,  defaultY: 14, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'mini-news',        title: 'Recent News',           defaultX: 4,  defaultY: 14, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'social-trending',  title: 'Social Trending',       defaultX: 8,  defaultY: 14, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'position-sizing',  title: 'Position Sizing',       defaultX: 0,  defaultY: 18, defaultW: 6,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'notes',            title: 'Notes',                 defaultX: 6,  defaultY: 18, defaultW: 6,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'trade-calculator', title: 'Trade Calculator',      defaultX: 0,  defaultY: 22, defaultW: 6,  defaultH: 5,  minW: 4, minH: 4 },
-        { id: 'simulations',      title: 'Saved Simulations',     defaultX: 6,  defaultY: 22, defaultW: 6,  defaultH: 5,  minW: 4, minH: 3 },
-        { id: 'llm-result',       title: 'LLM Analysis',          defaultX: 0,  defaultY: 27, defaultW: 12, defaultH: 3,  minW: 4, minH: 2 },
-    ],
-
-    LAYOUT_KEY: 'sd_stock_detail_layout',
 
     async render(container, symbol) {
         this.symbol = symbol;
         this.calcPickMode = null;
-        this.editMode = false;
 
         const today = new Date().toISOString().split('T')[0];
         const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
@@ -54,7 +27,6 @@ const StockDetail = {
                 </a>
                 <div>
                     <div class="stock-detail-symbol" id="stock-symbol">${symbol}</div>
-                    <div class="stock-detail-company-name text-muted" id="stock-company-name" style="font-size:0.85rem"></div>
                 </div>
                 <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
                     <select id="stock-period" class="btn btn-ghost btn-sm" style="padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary)">
@@ -71,27 +43,147 @@ const StockDetail = {
                         </svg>
                         LLM Analysis
                     </button>
-                    <button class="btn btn-ghost btn-sm" id="stock-edit-layout-btn" title="Customize layout">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
-                            <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                            <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                            <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-                            <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                        </svg>
-                        Customize
-                    </button>
                 </div>
             </div>
 
-            <div id="stock-layout-edit-bar" class="layout-edit-bar hidden">
-                <span>🔧 Layout edit mode — drag widgets to reorder, resize from edges</span>
-                <div style="display:flex;gap:8px">
-                    <button class="btn btn-ghost btn-sm" id="stock-reset-layout-btn">Reset Layout</button>
-                    <button class="btn btn-primary btn-sm" id="stock-done-layout-btn">Done</button>
+            <div class="stock-detail-grid">
+                <div>
+                    <div class="chart-container">
+                        <div id="chart-pick-banner" class="chart-pick-banner hidden"></div>
+                        <div class="chart-area" id="main-chart"></div>
+                    </div>
+                    <div id="action-card-area" class="mt-4"></div>
+                    <div id="earnings-warning-area"></div>
+                    <div id="llm-result-area" class="mt-4"></div>
+                    <div id="signals-list-area" class="mt-4"></div>
+
+                    <!-- Fundamentals Section -->
+                    <div class="card mt-4" id="fundamentals-section" style="display:none">
+                        <div class="card-header">
+                            <h3>Fundamentals</h3>
+                            <span id="fund-sector" class="text-muted" style="font-size:0.75rem"></span>
+                        </div>
+                        <div id="fundamentals-data" class="fundamentals-grid"></div>
+                    </div>
+
+                    <!-- Position Sizing -->
+                    <div class="card mt-4" id="position-size-section">
+                        <div class="card-header">
+                            <h3>Position Sizing</h3>
+                            <span class="text-muted" style="font-size:0.75rem">ATR-based risk management</span>
+                        </div>
+                        <div class="calculator-form" style="margin-bottom:12px">
+                            <div class="form-group">
+                                <label>Account Size ($)</label>
+                                <input type="number" id="ps-account-size" value="200" min="1" step="any">
+                            </div>
+                            <div class="form-group">
+                                <label>Risk %</label>
+                                <input type="number" id="ps-risk-pct" value="2" min="0.1" max="100" step="0.1">
+                            </div>
+                            <div class="form-group" style="flex:0">
+                                <label style="visibility:hidden">_</label>
+                                <button class="btn btn-primary" id="ps-calculate">Calculate</button>
+                            </div>
+                        </div>
+                        <div id="ps-results"></div>
+                    </div>
+
+                    <!-- Mini News / Research -->
+                    <div class="card mt-4" id="mini-news-section">
+                        <div class="card-header">
+                            <h3>Recent News</h3>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <span id="mini-sentiment-badge"></span>
+                                <a href="#/investigate/${symbol}" class="btn btn-outline btn-sm">Full Research</a>
+                            </div>
+                        </div>
+                        <div id="mini-news-content">
+                            <button class="btn btn-ghost btn-sm" id="load-mini-news" style="width:100%;padding:16px">Load News &amp; Sentiment</button>
+                        </div>
+                    </div>
+
+                    <!-- Notes Section -->
+                    <div class="card mt-4" id="notes-section">
+                        <div class="card-header">
+                            <h3>Notes</h3>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <span id="notes-status" class="text-muted" style="font-size:0.75rem"></span>
+                                <button class="btn btn-primary btn-sm" id="save-notes">Save</button>
+                            </div>
+                        </div>
+                        <div id="notes-editor-area">
+                            <textarea id="notes-textarea"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="card mt-6" id="calc-section">
+                        <div class="card-header">
+                            <h3>Trade Calculator</h3>
+                            <span class="text-muted" style="font-size:0.75rem">What-if scenario</span>
+                        </div>
+                        <div class="calculator-form" style="margin-bottom:12px">
+                            <div class="form-group">
+                                <label>Buy Date</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="date" id="calc-entry-date" value="${yearAgo}" max="${today}" style="flex:1">
+                                    <button class="btn btn-ghost btn-sm" id="calc-pick-entry" title="Pick from chart">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="22" y1="12" x2="18" y2="12"></line>
+                                            <line x1="6" y1="12" x2="2" y2="12"></line>
+                                            <line x1="12" y1="6" x2="12" y2="2"></line>
+                                            <line x1="12" y1="22" x2="12" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Sell Date</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="date" id="calc-exit-date" value="${today}" max="${today}" style="flex:1">
+                                    <button class="btn btn-ghost btn-sm" id="calc-pick-exit" title="Pick from chart">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="22" y1="12" x2="18" y2="12"></line>
+                                            <line x1="6" y1="12" x2="2" y2="12"></line>
+                                            <line x1="12" y1="6" x2="12" y2="2"></line>
+                                            <line x1="12" y1="22" x2="12" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount</label>
+                                <input type="number" id="calc-amount" value="1000" min="0" step="any">
+                            </div>
+                            <div class="form-group" style="min-width:100px">
+                                <label>Type</label>
+                                <select id="calc-amount-type">
+                                    <option value="dollars">Dollars</option>
+                                    <option value="shares">Shares</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:0">
+                                <label style="visibility:hidden">_</label>
+                                <button class="btn btn-primary" id="calc-run">Calculate</button>
+                            </div>
+                        </div>
+                        <div id="calc-results"></div>
+                    </div>
+
+                    <div class="card mt-4" id="simulations-section">
+                        <div class="card-header">
+                            <h3>Saved Simulations</h3>
+                            <button class="btn btn-ghost btn-sm" id="clear-sims" title="Clear all">Clear</button>
+                        </div>
+                        <div id="simulations-list"></div>
+                    </div>
+                </div>
+                <div class="indicators-sidebar" id="indicators-sidebar">
+                    <div class="loading-spinner"><div class="spinner"></div></div>
                 </div>
             </div>
-
-            <div class="grid-stack" id="stock-detail-grid"></div>
         `;
 
         document.getElementById('stock-period').addEventListener('change', (e) => {
@@ -99,19 +191,21 @@ const StockDetail = {
         });
 
         document.getElementById('llm-btn').addEventListener('click', () => this.runLLM());
-        document.getElementById('stock-edit-layout-btn').addEventListener('click', () => this.toggleEditMode());
-        document.getElementById('stock-done-layout-btn').addEventListener('click', () => this.toggleEditMode());
-        document.getElementById('stock-reset-layout-btn').addEventListener('click', () => {
-            localStorage.removeItem(this.LAYOUT_KEY);
-            this.editMode = false;
-            this.render(container, symbol);
+        document.getElementById('calc-run').addEventListener('click', () => this.runCalculator());
+        document.getElementById('calc-pick-entry').addEventListener('click', () => this.startPick('entry'));
+        document.getElementById('calc-pick-exit').addEventListener('click', () => this.startPick('exit'));
+        document.getElementById('clear-sims').addEventListener('click', () => {
+            this.clearSimulations();
         });
 
-        // Initialize GridStack
-        this.initGrid();
+        // Position sizing
+        document.getElementById('ps-calculate').addEventListener('click', () => this.calculatePositionSize());
 
-        // Wire up widget event listeners after grid is built
-        this.wireWidgetListeners();
+        // Notes
+        document.getElementById('save-notes').addEventListener('click', () => this.saveNotes());
+
+        // Mini news
+        document.getElementById('load-mini-news').addEventListener('click', () => this.loadMiniNews());
 
         this.renderSimulations();
         await this.loadData('6mo');
@@ -119,302 +213,6 @@ const StockDetail = {
         this.loadNotes();
         this.loadFundamentals();
         this.loadEarnings();
-        this.loadRelatedStocks();
-        this.loadInsiderTrades();
-        this.loadSocialTrending();
-    },
-
-    // --- GridStack initialization ---
-    initGrid() {
-        const saved = this.loadLayout();
-
-        const items = this.widgetDefs.map(def => {
-            const s = saved ? saved.find(s => s.id === def.id) : null;
-            return {
-                id: def.id,
-                x: s ? s.x : def.defaultX,
-                y: s ? s.y : def.defaultY,
-                w: s ? s.w : def.defaultW,
-                h: s ? s.h : def.defaultH,
-                minW: def.minW,
-                minH: def.minH,
-                content: `
-                    <div class="widget-wrapper" id="stock-widget-${def.id}">
-                        <div class="widget-content stock-widget-content" id="stock-widget-content-${def.id}">
-                            ${this.getWidgetPlaceholder(def.id)}
-                        </div>
-                    </div>
-                `,
-            };
-        });
-
-        this.grid = GridStack.init({
-            column: 12,
-            cellHeight: 50,
-            margin: 8,
-            float: false,
-            animate: true,
-            disableDrag: true,
-            disableResize: true,
-            removable: false,
-        }, '#stock-detail-grid');
-
-        this.grid.load(items);
-
-        this.grid.on('change', () => {
-            this.saveLayout();
-        });
-    },
-
-    getWidgetPlaceholder(id) {
-        const today = new Date().toISOString().split('T')[0];
-        const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
-
-        switch (id) {
-            case 'chart':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Price Chart</h3>
-                    </div>
-                    <div class="chart-container" style="border:none;padding:0;min-height:0;background:transparent">
-                        <div id="chart-pick-banner" class="chart-pick-banner hidden"></div>
-                        <div class="chart-area" id="main-chart" style="height:100%;min-height:300px"></div>
-                        <div id="chart-tooltip" class="chart-hover-tooltip hidden"></div>
-                    </div>
-                `;
-            case 'indicators':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Indicators</h3>
-                    </div>
-                    <div id="indicators-content" class="indicators-flow">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                    </div>
-                `;
-            case 'action-card':
-                return `<div id="action-card-area"><div class="text-muted" style="padding:16px;font-size:0.85rem">Loading...</div></div>`;
-            case 'earnings-warning':
-                return `<div id="earnings-warning-area"><div class="text-muted" style="padding:16px;font-size:0.85rem">Loading earnings...</div></div>`;
-            case 'related-stocks':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Related Stocks</h3>
-                        <span class="text-muted" style="font-size:0.7rem">Sympathy plays</span>
-                    </div>
-                    <div id="related-stocks-content">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                    </div>
-                `;
-            case 'signals-list':
-                return `<div id="signals-list-area"></div>`;
-            case 'fundamentals':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Fundamentals</h3>
-                        <span id="fund-sector" class="text-muted" style="font-size:0.75rem"></span>
-                    </div>
-                    <div id="fundamentals-data" class="fundamentals-grid"></div>
-                `;
-            case 'insider-trading':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Insider Trading</h3>
-                        <a href="#/investigate/${this.symbol}" class="btn btn-ghost btn-sm" style="font-size:0.7rem">Full Report</a>
-                    </div>
-                    <div id="insider-content">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                    </div>
-                `;
-            case 'mini-news':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Recent News</h3>
-                        <div style="display:flex;gap:8px;align-items:center">
-                            <span id="mini-sentiment-badge"></span>
-                            <a href="#/investigate/${this.symbol}" class="btn btn-ghost btn-sm" style="font-size:0.7rem">Full Research</a>
-                        </div>
-                    </div>
-                    <div id="mini-news-content">
-                        <button class="btn btn-ghost btn-sm" id="load-mini-news" style="width:100%;padding:16px">Load News &amp; Sentiment</button>
-                    </div>
-                `;
-            case 'social-trending':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Social Trending</h3>
-                    </div>
-                    <div id="social-content">
-                        <div class="loading-spinner"><div class="spinner"></div></div>
-                    </div>
-                `;
-            case 'position-sizing':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Position Sizing</h3>
-                        <span class="text-muted" style="font-size:0.75rem">ATR-based risk management</span>
-                    </div>
-                    <div class="calculator-form" style="margin-bottom:12px">
-                        <div class="form-group">
-                            <label>Account Size ($)</label>
-                            <input type="number" id="ps-account-size" value="200" min="1" step="any">
-                        </div>
-                        <div class="form-group">
-                            <label>Risk %</label>
-                            <input type="number" id="ps-risk-pct" value="2" min="0.1" max="100" step="0.1">
-                        </div>
-                        <div class="form-group" style="flex:0">
-                            <label style="visibility:hidden">_</label>
-                            <button class="btn btn-primary" id="ps-calculate">Calculate</button>
-                        </div>
-                    </div>
-                    <div id="ps-results"></div>
-                `;
-            case 'notes':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Notes</h3>
-                        <div style="display:flex;gap:8px;align-items:center">
-                            <span id="notes-status" class="text-muted" style="font-size:0.75rem"></span>
-                            <button class="btn btn-primary btn-sm" id="save-notes">Save</button>
-                        </div>
-                    </div>
-                    <div id="notes-editor-area">
-                        <textarea id="notes-textarea"></textarea>
-                    </div>
-                `;
-            case 'trade-calculator':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Trade Calculator</h3>
-                        <span class="text-muted" style="font-size:0.75rem">What-if scenario</span>
-                    </div>
-                    <div class="calculator-form" style="margin-bottom:12px">
-                        <div class="form-group">
-                            <label>Buy Date</label>
-                            <div style="display:flex;gap:6px">
-                                <input type="date" id="calc-entry-date" value="${yearAgo}" max="${today}" style="flex:1">
-                                <button class="btn btn-ghost btn-sm" id="calc-pick-entry" title="Pick from chart">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
-                                        <circle cx="12" cy="12" r="10"></circle>
-                                        <line x1="22" y1="12" x2="18" y2="12"></line>
-                                        <line x1="6" y1="12" x2="2" y2="12"></line>
-                                        <line x1="12" y1="6" x2="12" y2="2"></line>
-                                        <line x1="12" y1="22" x2="12" y2="18"></line>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Sell Date</label>
-                            <div style="display:flex;gap:6px">
-                                <input type="date" id="calc-exit-date" value="${today}" max="${today}" style="flex:1">
-                                <button class="btn btn-ghost btn-sm" id="calc-pick-exit" title="Pick from chart">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
-                                        <circle cx="12" cy="12" r="10"></circle>
-                                        <line x1="22" y1="12" x2="18" y2="12"></line>
-                                        <line x1="6" y1="12" x2="2" y2="12"></line>
-                                        <line x1="12" y1="6" x2="12" y2="2"></line>
-                                        <line x1="12" y1="22" x2="12" y2="18"></line>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Amount</label>
-                            <input type="number" id="calc-amount" value="1000" min="0" step="any">
-                        </div>
-                        <div class="form-group" style="min-width:100px">
-                            <label>Type</label>
-                            <select id="calc-amount-type">
-                                <option value="dollars">Dollars</option>
-                                <option value="shares">Shares</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="flex:0">
-                            <label style="visibility:hidden">_</label>
-                            <button class="btn btn-primary" id="calc-run">Calculate</button>
-                        </div>
-                    </div>
-                    <div id="calc-results"></div>
-                `;
-            case 'simulations':
-                return `
-                    <div class="stock-widget-header">
-                        <h3>Saved Simulations</h3>
-                        <button class="btn btn-ghost btn-sm" id="clear-sims" title="Clear all">Clear</button>
-                    </div>
-                    <div id="simulations-list"></div>
-                `;
-            case 'llm-result':
-                return `<div id="llm-result-area"></div>`;
-            default:
-                return '';
-        }
-    },
-
-    wireWidgetListeners() {
-        // Position sizing
-        const psCalc = document.getElementById('ps-calculate');
-        if (psCalc) psCalc.addEventListener('click', () => this.calculatePositionSize());
-
-        // Notes
-        const saveNotes = document.getElementById('save-notes');
-        if (saveNotes) saveNotes.addEventListener('click', () => this.saveNotes());
-
-        // Mini news
-        const loadNews = document.getElementById('load-mini-news');
-        if (loadNews) loadNews.addEventListener('click', () => this.loadMiniNews());
-
-        // Calculator
-        const calcRun = document.getElementById('calc-run');
-        if (calcRun) calcRun.addEventListener('click', () => this.runCalculator());
-        const pickEntry = document.getElementById('calc-pick-entry');
-        if (pickEntry) pickEntry.addEventListener('click', () => this.startPick('entry'));
-        const pickExit = document.getElementById('calc-pick-exit');
-        if (pickExit) pickExit.addEventListener('click', () => this.startPick('exit'));
-
-        // Clear simulations
-        const clearSims = document.getElementById('clear-sims');
-        if (clearSims) clearSims.addEventListener('click', () => this.clearSimulations());
-    },
-
-    // --- Layout edit mode ---
-    toggleEditMode() {
-        this.editMode = !this.editMode;
-        const bar = document.getElementById('stock-layout-edit-bar');
-        const gridEl = document.getElementById('stock-detail-grid');
-        const editBtn = document.getElementById('stock-edit-layout-btn');
-
-        if (this.editMode) {
-            bar.classList.remove('hidden');
-            gridEl.classList.add('gs-edit-mode');
-            editBtn.classList.add('active');
-            this.grid.enableMove(true);
-            this.grid.enableResize(true);
-        } else {
-            bar.classList.add('hidden');
-            gridEl.classList.remove('gs-edit-mode');
-            editBtn.classList.remove('active');
-            this.grid.enableMove(false);
-            this.grid.enableResize(false);
-            this.saveLayout();
-        }
-    },
-
-    saveLayout() {
-        if (!this.grid) return;
-        const items = [];
-        this.grid.engine.nodes.forEach(n => {
-            items.push({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h });
-        });
-        localStorage.setItem(this.LAYOUT_KEY, JSON.stringify(items));
-    },
-
-    loadLayout() {
-        try {
-            const data = localStorage.getItem(this.LAYOUT_KEY);
-            return data ? JSON.parse(data) : null;
-        } catch { return null; }
     },
 
     async loadData(period) {
@@ -463,14 +261,13 @@ const StockDetail = {
 
     renderChart(data) {
         const el = document.getElementById('main-chart');
-        if (!el) return;
         if (this.chart) {
             try { this.chart.remove(); } catch(e) {}
         }
 
         this.chart = LightweightCharts.createChart(el, {
             width: el.clientWidth,
-            height: el.clientHeight || 380,
+            height: 380,
             layout: {
                 background: { type: 'solid', color: '#1a2035' },
                 textColor: '#8899b0',
@@ -578,58 +375,17 @@ const StockDetail = {
 
         this.chart.timeScale().fitContent();
 
-        // --- Hover tooltip for OHLCV ---
-        const tooltipEl = document.getElementById('chart-tooltip');
-        const ohlcvMap = {};
-        data.ohlcv.forEach(c => { ohlcvMap[c.time] = c; });
-
-        this.chart.subscribeCrosshairMove((param) => {
-            if (!tooltipEl) return;
-            if (!param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
-                tooltipEl.classList.add('hidden');
-                return;
-            }
-            const d = ohlcvMap[param.time] || ohlcvMap[`${param.time.year}-${String(param.time.month).padStart(2,'0')}-${String(param.time.day).padStart(2,'0')}`];
-            if (!d) { tooltipEl.classList.add('hidden'); return; }
-
-            const change = d.close - d.open;
-            const changePct = d.open ? ((change / d.open) * 100).toFixed(2) : '0.00';
-            const changeSign = change >= 0 ? '+' : '';
-            const changeColor = change >= 0 ? '#00d4aa' : '#ff4757';
-
-            tooltipEl.innerHTML = `
-                <div style="font-weight:600;margin-bottom:4px;color:var(--text-primary)">${d.time}</div>
-                <div><span class="text-muted">O:</span> <span style="font-family:var(--font-mono)">${d.open.toFixed(2)}</span></div>
-                <div><span class="text-muted">H:</span> <span style="font-family:var(--font-mono)">${d.high.toFixed(2)}</span></div>
-                <div><span class="text-muted">L:</span> <span style="font-family:var(--font-mono)">${d.low.toFixed(2)}</span></div>
-                <div><span class="text-muted">C:</span> <span style="font-family:var(--font-mono)">${d.close.toFixed(2)}</span></div>
-                <div><span class="text-muted">V:</span> <span style="font-family:var(--font-mono)">${d.volume.toLocaleString()}</span></div>
-                <div style="margin-top:4px;color:${changeColor};font-weight:600;font-family:var(--font-mono)">${changeSign}${change.toFixed(2)} (${changeSign}${changePct}%)</div>
-            `;
-            tooltipEl.classList.remove('hidden');
-
-            // Position tooltip near cursor but keep within chart bounds
-            const chartRect = el.getBoundingClientRect();
-            let left = param.point.x + 16;
-            let top = param.point.y - 10;
-            if (left + 160 > chartRect.width) left = param.point.x - 170;
-            if (top < 0) top = 10;
-            tooltipEl.style.left = left + 'px';
-            tooltipEl.style.top = top + 'px';
-        });
-
         // Resize observer
         const resizeObserver = new ResizeObserver(() => {
             if (this.chart) {
-                this.chart.applyOptions({ width: el.clientWidth, height: el.clientHeight || 380 });
+                this.chart.applyOptions({ width: el.clientWidth });
             }
         });
         resizeObserver.observe(el);
     },
 
     renderIndicators(summary) {
-        const container = document.getElementById('indicators-content');
-        if (!container) return;
+        const sidebar = document.getElementById('indicators-sidebar');
         const rsiClass = App.rsiClass(summary.rsi);
         const rsiColor = rsiClass === 'oversold' ? '#00d4aa' : rsiClass === 'overbought' ? '#ff4757' : '#8899b0';
         const rsiWidth = Math.min(100, Math.max(0, summary.rsi));
@@ -637,7 +393,7 @@ const StockDetail = {
         const macdColor = summary.macd_histogram > 0 ? '#00d4aa' : '#ff4757';
         const adxWidth = Math.min(100, Math.max(0, (summary.adx / 50) * 100));
 
-        container.innerHTML = `
+        sidebar.innerHTML = `
             <div class="indicator-card" title="Relative Strength Index — measures if a stock is overbought or oversold. Below 30 = oversold (potential buy opportunity). Above 70 = overbought (potential sell signal). Between 30-70 = neutral.">
                 <div class="indicator-card-label">RSI (14) <span class="tooltip-icon">?</span></div>
                 <div class="indicator-card-value" style="color:${rsiColor}">${summary.rsi?.toFixed(1) ?? '—'}</div>
@@ -1173,15 +929,11 @@ const StockDetail = {
             const data = await App.get(`/api/stock/${this.symbol}/fundamentals`);
             if (!data) return;
 
-            // Set company name in header
-            const nameEl = document.getElementById('stock-company-name');
-            if (nameEl && data.name) {
-                nameEl.textContent = data.name;
-            }
-
+            const section = document.getElementById('fundamentals-section');
             const sectorEl = document.getElementById('fund-sector');
             const gridEl = document.getElementById('fundamentals-data');
-            if (sectorEl) sectorEl.textContent = `${data.sector || ''} — ${data.industry || ''}`;
+            section.style.display = '';
+            sectorEl.textContent = `${data.sector || ''} — ${data.industry || ''}`;
 
             const fmt = (v, prefix = '', suffix = '') => v != null ? `${prefix}${typeof v === 'number' ? v.toLocaleString(undefined, {maximumFractionDigits: 2}) : v}${suffix}` : '—';
             const fmtPct = (v) => v != null ? `${(v * 100).toFixed(2)}%` : '—';
@@ -1193,7 +945,7 @@ const StockDetail = {
                 return `$${v.toLocaleString()}`;
             };
 
-            if (gridEl) gridEl.innerHTML = `
+            gridEl.innerHTML = `
                 <div class="fund-item"><span class="fund-label">P/E Ratio</span><span class="fund-value">${fmt(data.pe_ratio)}</span></div>
                 <div class="fund-item"><span class="fund-label">EPS</span><span class="fund-value">${fmt(data.eps, '$')}</span></div>
                 <div class="fund-item"><span class="fund-label">PEG Ratio</span><span class="fund-value">${fmt(data.peg_ratio)}</span></div>
@@ -1345,200 +1097,6 @@ const StockDetail = {
             `;
         } catch (e) {
             contentEl.innerHTML = `<p class="text-muted" style="padding:12px">Failed to load news: ${App.escapeHtml(e.message)}</p>`;
-        }
-    },
-
-    // --- Related Stocks (Sympathy Plays) ---
-    async loadRelatedStocks() {
-        const contentEl = document.getElementById('related-stocks-content');
-        if (!contentEl) return;
-
-        try {
-            const data = await App.get(`/api/stock/${this.symbol}/peers`);
-            const peers = data.peers || [];
-
-            if (peers.length === 0) {
-                contentEl.innerHTML = '<p class="text-muted" style="padding:12px;font-size:0.85rem">No related stocks found</p>';
-                return;
-            }
-
-            contentEl.innerHTML = `
-                <div class="related-stocks-list">
-                    ${peers.map(p => {
-                        const changeColor = p.change_pct > 0 ? 'var(--green)' : p.change_pct < 0 ? 'var(--red)' : 'var(--text-muted)';
-                        const changeSign = p.change_pct > 0 ? '+' : '';
-                        return `
-                            <a href="#/stock/${App.escapeHtml(p.symbol)}" class="related-stock-item">
-                                <div>
-                                    <div style="font-weight:600;color:var(--text-primary)">${App.escapeHtml(p.symbol)}</div>
-                                    <div style="font-size:0.7rem;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${App.escapeHtml(p.name || p.symbol)}</div>
-                                </div>
-                                <div style="text-align:right">
-                                    <div style="font-family:var(--font-mono);font-size:0.85rem">${p.price != null ? '$' + p.price.toFixed(2) : '—'}</div>
-                                    <div style="font-family:var(--font-mono);font-size:0.8rem;font-weight:600;color:${changeColor}">
-                                        ${p.change_pct != null ? `${changeSign}${p.change_pct.toFixed(2)}%` : '—'}
-                                    </div>
-                                </div>
-                            </a>
-                        `;
-                    }).join('')}
-                </div>
-            `;
-        } catch (e) {
-            contentEl.innerHTML = '<p class="text-muted" style="padding:12px;font-size:0.85rem">Failed to load related stocks</p>';
-        }
-    },
-
-    // --- Insider Trading (light copy from investigator) ---
-    async loadInsiderTrades() {
-        const contentEl = document.getElementById('insider-content');
-        if (!contentEl) return;
-
-        try {
-            const data = await App.get(`/api/stock/${this.symbol}/insider`);
-            const trades = data.trades || [];
-            const summary = data.summary || {};
-
-            if (trades.length === 0) {
-                contentEl.innerHTML = '<p class="text-muted" style="padding:12px;font-size:0.85rem">No recent insider trades found</p>';
-                return;
-            }
-
-            const signalColor = summary.signal === 'bullish' ? 'var(--green)' : summary.signal === 'bearish' ? 'var(--red)' : 'var(--text-muted)';
-            const visibleCount = 5;
-
-            contentEl.innerHTML = `
-                ${summary.trade_count > 0 ? `
-                    <div style="display:flex;gap:16px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border);flex-wrap:wrap">
-                        <div><span class="text-muted" style="font-size:0.7rem">Signal</span><div style="font-weight:600;color:${signalColor};text-transform:uppercase">${summary.signal || 'N/A'}</div></div>
-                        <div><span class="text-muted" style="font-size:0.7rem">Bought</span><div class="text-green" style="font-weight:600">$${(summary.total_bought || 0).toLocaleString()}</div></div>
-                        <div><span class="text-muted" style="font-size:0.7rem">Sold</span><div class="text-red" style="font-weight:600">$${(summary.total_sold || 0).toLocaleString()}</div></div>
-                    </div>
-                ` : ''}
-                <div class="signals-table-wrap" style="max-height:300px;overflow-y:auto">
-                    <table class="signals-table" style="font-size:0.75rem">
-                        <thead>
-                            <tr><th>Date</th><th>Insider</th><th>Type</th><th>Value</th></tr>
-                        </thead>
-                        <tbody id="insider-table-body">
-                            ${trades.slice(0, visibleCount).map(t => `
-                                <tr>
-                                    <td class="text-mono">${App.escapeHtml(t.trade_date)}</td>
-                                    <td>${App.escapeHtml(t.insider)}</td>
-                                    <td><span class="direction-badge ${t.type === 'Buy' ? 'buy' : 'sell'}">${t.type}</span></td>
-                                    <td class="text-mono">${App.escapeHtml(t.value)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                ${trades.length > visibleCount ? `
-                    <button class="btn btn-ghost btn-sm" id="insider-show-more" style="width:100%;margin-top:8px" data-showing="${visibleCount}">
-                        Show more (${trades.length - visibleCount} remaining)
-                    </button>
-                ` : ''}
-            `;
-
-            // Pagination for insider trades
-            const showMoreBtn = document.getElementById('insider-show-more');
-            if (showMoreBtn) {
-                showMoreBtn.addEventListener('click', () => {
-                    const current = parseInt(showMoreBtn.dataset.showing);
-                    const next = current + 5;
-                    const tbody = document.getElementById('insider-table-body');
-                    if (!tbody) return;
-
-                    const newRows = trades.slice(current, next).map(t => `
-                        <tr>
-                            <td class="text-mono">${App.escapeHtml(t.trade_date)}</td>
-                            <td>${App.escapeHtml(t.insider)}</td>
-                            <td><span class="direction-badge ${t.type === 'Buy' ? 'buy' : 'sell'}">${t.type}</span></td>
-                            <td class="text-mono">${App.escapeHtml(t.value)}</td>
-                        </tr>
-                    `).join('');
-                    tbody.insertAdjacentHTML('beforeend', newRows);
-                    showMoreBtn.dataset.showing = next;
-
-                    if (next >= trades.length) {
-                        showMoreBtn.remove();
-                    } else {
-                        showMoreBtn.textContent = `Show more (${trades.length - next} remaining)`;
-                    }
-                });
-            }
-        } catch (e) {
-            contentEl.innerHTML = '<p class="text-muted" style="padding:12px;font-size:0.85rem">Failed to load insider trades</p>';
-        }
-    },
-
-    // --- Social Trending ---
-    async loadSocialTrending() {
-        const contentEl = document.getElementById('social-content');
-        if (!contentEl) return;
-
-        try {
-            const data = await App.get(`/api/stock/${this.symbol}/social`);
-
-            if (!data.configured) {
-                contentEl.innerHTML = `
-                    <div class="social-empty-state">
-                        <div style="font-size:2rem;margin-bottom:8px">📡</div>
-                        <div style="font-weight:600;color:var(--text-primary);margin-bottom:4px">Reddit Not Connected</div>
-                        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px">Configure Reddit API credentials in Settings to see social trending data for ${this.symbol}.</div>
-                        <a href="#/settings" class="btn btn-outline btn-sm">Go to Settings</a>
-                    </div>
-                `;
-                return;
-            }
-
-            if (!data.mentions || data.mentions === 0) {
-                contentEl.innerHTML = `
-                    <div class="social-empty-state">
-                        <div style="font-size:2rem;margin-bottom:8px">🔇</div>
-                        <div style="font-weight:600;color:var(--text-primary);margin-bottom:4px">No Recent Mentions</div>
-                        <div style="font-size:0.8rem;color:var(--text-muted)">${this.symbol} hasn't been mentioned in tracked subreddits recently.</div>
-                        ${data.last_updated ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px">Last scan: ${new Date(data.last_updated).toLocaleString()}</div>` : ''}
-                    </div>
-                `;
-                return;
-            }
-
-            // Sentiment display
-            const sentScore = data.sentiment || 0;
-            const sentLabel = data.sentiment_label || 'neutral';
-            const sentColor = sentLabel === 'bullish' ? 'var(--green)' : sentLabel === 'bearish' ? 'var(--red)' : 'var(--text-muted)';
-
-            const posts = data.posts || [];
-
-            contentEl.innerHTML = `
-                <div style="text-align:center;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border)">
-                    <div style="font-size:1.5rem;font-weight:800;color:${sentColor};font-family:var(--font-mono)">${sentScore > 0 ? '+' : ''}${sentScore.toFixed(3)}</div>
-                    <div style="font-size:0.8rem;font-weight:600;color:${sentColor};text-transform:uppercase">${sentLabel}</div>
-                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">${data.mentions} mentions across Reddit</div>
-                </div>
-                ${posts.length > 0 ? `
-                    <div style="font-size:0.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;margin-bottom:6px;font-weight:600">Recent Posts</div>
-                    <div class="social-posts-list">
-                        ${posts.slice(0, 5).map(post => {
-                            const postSent = post.sentiment || 0;
-                            const postColor = postSent > 0.1 ? 'var(--green)' : postSent < -0.1 ? 'var(--red)' : 'var(--text-muted)';
-                            return `
-                                <div class="social-post-item">
-                                    <div style="font-size:0.8rem;color:var(--text-primary);margin-bottom:2px">${App.escapeHtml(post.title || post.text || '')}</div>
-                                    <div style="display:flex;gap:8px;font-size:0.7rem;color:var(--text-muted)">
-                                        <span>r/${App.escapeHtml(post.subreddit || '')}</span>
-                                        <span style="color:${postColor}">${postSent > 0 ? '+' : ''}${postSent.toFixed(2)}</span>
-                                        ${post.score ? `<span>⬆${post.score}</span>` : ''}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                ` : ''}
-                ${data.last_updated ? `<div style="font-size:0.65rem;color:var(--text-muted);margin-top:8px;text-align:center">Last scan: ${new Date(data.last_updated).toLocaleString()}</div>` : ''}
-            `;
-        } catch (e) {
-            contentEl.innerHTML = '<p class="text-muted" style="padding:12px;font-size:0.85rem">Failed to load social data</p>';
         }
     },
 };

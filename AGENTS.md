@@ -47,7 +47,7 @@ Trading/
 │       ├── app.js             # Router, API client, auth, state, Quick-Logger FAB
 │       ├── dashboard.js       # Widget grid + watchlist + heatmap + baskets + screener
 │       ├── signals.js         # Signal feed table + filters + position sizing
-│       ├── stock.js           # Candlestick chart + indicators + notes + fundamentals
+│       ├── stock.js           # Gridstack stock detail — chart, indicators, peers, insider, social, notes
 │       ├── backtest.js        # Backtester + equity curve + fundamental filters
 │       ├── paper.js           # Paper trading (Alpaca-synced + local fallback)
 │       ├── investigator.js    # Deep-dive research (news, sentiment, insider, earnings)
@@ -60,8 +60,8 @@ Trading/
 │   ├── Findings.md            # Backtest results analysis
 │   ├── Paper Trading — Full Alpaca Integration.md
 │   └── Trading Crash Course.md
-├── start-server.bat           # Launch backend server (port 8005)
-├── stop-server.bat            # Kill running server processes
+├── start-server.bat           # Launch backend server — Windows (port 8005)
+├── stop-server.bat            # Kill running server processes — Windows
 ├── .env.example               # Template for secrets
 ├── .gitignore
 ├── requirements.txt
@@ -71,6 +71,8 @@ Trading/
 ---
 
 ## Running the System
+
+The project runs on both **Windows** (development) and **Linux** (production server).
 
 ```bash
 # Install dependencies
@@ -88,10 +90,21 @@ python server.py
 # Login: admin / changeme (change in .env for production)
 ```
 
-### Windows bat scripts:
+### Windows (development):
 ```
 start-server.bat   # Opens terminal, starts the server
 stop-server.bat    # Kills server processes on port 8005
+```
+
+### Linux (production):
+```bash
+# Via systemd (see docs/dev/Deployment.md)
+sudo systemctl start signaldeck
+sudo systemctl status signaldeck
+sudo journalctl -u signaldeck -f   # tail logs
+
+# Or run directly
+cd backend && python server.py
 ```
 
 ### CLI tools (still available):
@@ -212,12 +225,26 @@ Group related stocks into named baskets with emoji icons. 4 default baskets seed
 
 ## Widget Grid System
 
-Dashboard uses **gridstack.js v10.3.1** for draggable/resizable widget layout:
+Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** for draggable/resizable widget layout.
+
+### Dashboard Widgets
 - **6 widgets:** Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
 - **Edit mode:** "Customize" button toggles drag/resize with visual handles
 - **Min sizes:** enforced per widget (e.g., watchlist ≥ 6 cols, quick-log ≥ 3 cols)
-- **Persistence:** layout auto-saved to `localStorage` on every change, restored on page load
+- **Persistence:** layout auto-saved to `localStorage` key `sd_dashboard_layout`, restored on page load
 - **Reset:** "Reset Layout" button clears saved layout and reverts to defaults
+
+### Stock Detail Widgets
+- **15 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
+- **Edit mode:** same UX as dashboard — "Customize" button with drag/resize handles
+- **Global layout:** saved to `localStorage` key `sd_stock_detail_layout` (shared across all symbols)
+- **Chart hover tooltip:** OHLCV values displayed on crosshair move
+- **Company name:** displayed in header below symbol, populated from fundamentals API
+- **Related Stocks:** Finnhub peers API with daily % change and clickable links
+- **Insider Trading:** light copy from Investigator — summary bar + paginated table (5 at a time)
+- **Social Trending:** Reddit mentions with sentiment, or empty state when not configured
+- **Indicators flow:** CSS grid with auto-fit wrap, reflows when widget is resized
+- **EasyMDE dark mode:** comprehensive CSS overrides for the Markdown notes editor
 
 ---
 
@@ -311,6 +338,12 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Trade Actions — automated Buy/Sell/Hold recommendations
 - [x] What-If Calculator — historical trade simulation with chart
 - [x] Settings page — discovery tuning, Reddit config, options flow thresholds
+- [x] Stock detail gridstack widget system (15 draggable/resizable widgets)
+- [x] Related Stocks widget (Finnhub peers with daily % change)
+- [x] Chart hover tooltip (OHLCV on crosshair move)
+- [x] Insider trading widget on stock detail (light copy from Investigator)
+- [x] Social trending widget with Reddit empty state
+- [x] EasyMDE dark mode CSS
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)
 - [ ] Alert notifications (email/push when signals fire)

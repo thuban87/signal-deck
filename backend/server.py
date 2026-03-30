@@ -1192,6 +1192,126 @@ async def api_get_insider_trades(symbol: str, user: str = Depends(verify_token))
 
 
 # ---------------------------------------------------------------------------
+# Peer / Related Stocks API (via Finnhub + yfinance fallback)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/stock/{symbol}/peers")
+async def api_get_peers(symbol: str, user: str = Depends(verify_token)):
+    """Get peer/related stocks using Finnhub peers endpoint with yfinance price data."""
+    symbol = symbol.upper()
+    peers = []
+
+    # Try Finnhub peers first
+    if FINNHUB_API_KEY:
+        try:
+            import requests as req
+            resp = req.get(
+                "https://finnhub.io/api/v1/stock/peers",
+                params={"symbol": symbol, "token": FINNHUB_API_KEY},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                raw_peers = resp.json()
+                # Filter out the symbol itself and ETFs, limit to 5
+                raw_peers = [p for p in raw_peers if p != symbol and not p.startswith("^")][:5]
+                peers = raw_peers
+        except Exception as e:
+            print(f"[Peers] Finnhub error for {symbol}: {e}")
+
+    if not peers:
+        return {"symbol": symbol, "peers": [], "message": "No peers found"}
+
+    # Fetch price data for each peer via yfinance
+    peer_data = []
+    try:
+        import yfinance as yf
+        tickers_str = " ".join(peers)
+        data = yf.download(tickers_str, period="5d", group_by="ticker", progress=False, threads=True)
+
+        for p in peers:
+            try:
+                if len(peers) == 1:
+                    ticker_data = data
+                else:
+                    ticker_data = data[p]
+                if ticker_data.empty:
+                    continue
+                latest = ticker_data.dropna(subset=["Close"]).iloc[-1]
+                prev = ticker_data.dropna(subset=["Close"]).iloc[-2] if len(ticker_data.dropna(subset=["Close"])) > 1 else latest
+                close_val = float(latest["Close"].iloc[0]) if hasattr(latest["Close"], 'iloc') else float(latest["Close"])
+                prev_val = float(prev["Close"].iloc[0]) if hasattr(prev["Close"], 'iloc') else float(prev["Close"])
+                change_pct = ((close_val - prev_val) / prev_val * 100) if prev_val else 0
+
+                # Try to get company name
+                info = yf.Ticker(p).info
+                name = info.get("shortName", info.get("longName", p))
+
+                peer_data.append({
+                    "symbol": p,
+                    "name": name,
+                    "price": round(close_val, 2),
+                    "change_pct": round(change_pct, 2),
+                })
+            except Exception:
+                peer_data.append({"symbol": p, "name": p, "price": None, "change_pct": None})
+    except Exception as e:
+        print(f"[Peers] yfinance error: {e}")
+        peer_data = [{"symbol": p, "name": p, "price": None, "change_pct": None} for p in peers]
+
+    return {"symbol": symbol, "peers": peer_data}
+
+
+# ---------------------------------------------------------------------------
+# Per-Symbol Social Mentions API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/stock/{symbol}/social")
+async def api_get_symbol_social(symbol: str, user: str = Depends(verify_token)):
+    """Get social mentions/sentiment for a specific symbol from cached Reddit data."""
+    symbol = symbol.upper()
+
+    configured = bool(REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET)
+    if not configured:
+        return {
+            "symbol": symbol,
+            "configured": False,
+            "mentions": 0,
+            "sentiment": None,
+            "posts": [],
+            "last_updated": None,
+        }
+
+    # Pull from cached social data
+    all_mentions = get_social_mentions()
+    symbol_data = None
+    for m in all_mentions:
+        if m.get("symbol", "").upper() == symbol:
+            symbol_data = m
+            break
+
+    if not symbol_data:
+        return {
+            "symbol": symbol,
+            "configured": True,
+            "mentions": 0,
+            "sentiment": None,
+            "posts": [],
+            "last_updated": get_social_last_scan(),
+        }
+
+    return {
+        "symbol": symbol,
+        "configured": True,
+        "mentions": symbol_data.get("mention_count", 0),
+        "sentiment": symbol_data.get("avg_sentiment", 0),
+        "sentiment_label": "bullish" if symbol_data.get("avg_sentiment", 0) > 0.1 else "bearish" if symbol_data.get("avg_sentiment", 0) < -0.1 else "neutral",
+        "posts": symbol_data.get("top_posts", []),
+        "subreddits": symbol_data.get("subreddits", []),
+        "last_updated": get_social_last_scan(),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Quick-Logger API ("Overheard in the Uber")
 # ---------------------------------------------------------------------------
 

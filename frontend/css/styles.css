@@ -3124,6 +3124,338 @@ a.quick-log-resolved.ql-stock-link:hover {
     gap: 8px;
 }
 
+
+/* =====================================================================
+   Stock Detail Page — Gridstack Widget System
+   ===================================================================== */
+
+/* Widget header bar (consistent across all stock widgets) */
+.stock-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 8px;
+    font-size: 0.85rem;
+}
+
+.stock-widget-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Widget content padding */
+.stock-widget-content {
+    padding: 0 16px 12px;
+}
+
+/* Chart widget — no inner padding, let chart fill */
+#stock-widget-content-chart {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#stock-widget-content-chart .chart-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#stock-widget-content-chart .chart-area {
+    flex: 1;
+    min-height: 250px;
+}
+
+#stock-widget-content-chart .stock-widget-header {
+    flex-shrink: 0;
+}
+
+/* Chart hover tooltip */
+.chart-hover-tooltip {
+    position: absolute;
+    z-index: 100;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    pointer-events: none;
+    box-shadow: var(--shadow-lg);
+    min-width: 140px;
+}
+
+/* Indicators — flow/wrap layout instead of sidebar column */
+.indicators-flow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    padding: 0 4px;
+}
+
+/* Position sizing, calculator, and notes — pad their forms */
+#stock-widget-content-position-sizing,
+#stock-widget-content-trade-calculator,
+#stock-widget-content-notes {
+    padding: 0 16px 12px;
+}
+
+/* Fundamentals inside widget — ensure proper wrapping */
+#stock-widget-content-fundamentals .fundamentals-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    padding: 0 4px 8px;
+}
+
+/* Related stocks list */
+.related-stocks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.related-stock-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: background var(--transition-fast);
+}
+
+.related-stock-item:hover {
+    background: var(--bg-elevated);
+}
+
+/* Social trending */
+.social-empty-state {
+    text-align: center;
+    padding: 24px 16px;
+}
+
+.social-posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.social-post-item {
+    padding: 8px 10px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--border);
+}
+
+/* Insider trading widget */
+#stock-widget-content-insider-trading {
+    padding: 0 16px 12px;
+}
+
+/* Action card within widget */
+#action-card-area .action-card {
+    margin: 0;
+}
+
+/* Earnings warning within widget */
+#earnings-warning-area .card {
+    margin: 0;
+    border-width: 2px;
+}
+
+/* LLM result within widget */
+#llm-result-area .action-card {
+    margin: 0;
+}
+
+/* Signals list within widget */
+#signals-list-area .card {
+    margin: 0;
+    border: none;
+    background: transparent;
+}
+
+/* Related stocks widget content */
+#stock-widget-content-related-stocks {
+    padding: 0 16px 12px;
+}
+
+/* Social trending widget content */
+#stock-widget-content-social-trending {
+    padding: 0 16px 12px;
+}
+
+/* News widget adjustment */
+#stock-widget-content-mini-news {
+    padding: 0 16px 12px;
+}
+
+
+/* =====================================================================
+   EasyMDE — Dark Mode Overrides
+   ===================================================================== */
+
+/* Editor wrapper */
+.EasyMDEContainer {
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Toolbar */
+.EasyMDEContainer .editor-toolbar {
+    background: var(--bg-surface) !important;
+    border-color: var(--border) !important;
+    opacity: 1 !important;
+}
+
+.EasyMDEContainer .editor-toolbar button {
+    color: var(--text-secondary) !important;
+    border: none !important;
+}
+
+.EasyMDEContainer .editor-toolbar button:hover {
+    background: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+}
+
+.EasyMDEContainer .editor-toolbar button.active {
+    background: var(--bg-elevated) !important;
+    color: var(--green) !important;
+}
+
+.EasyMDEContainer .editor-toolbar i.separator {
+    border-left-color: var(--border) !important;
+    border-right-color: var(--border) !important;
+}
+
+/* Editor area (CodeMirror) */
+.EasyMDEContainer .CodeMirror {
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border) !important;
+    border-top: none !important;
+}
+
+.EasyMDEContainer .CodeMirror-cursor {
+    border-left-color: var(--text-primary) !important;
+}
+
+.EasyMDEContainer .CodeMirror-selected {
+    background: rgba(74, 158, 255, 0.2) !important;
+}
+
+.EasyMDEContainer .CodeMirror .CodeMirror-code .cm-header {
+    color: var(--green) !important;
+}
+
+.EasyMDEContainer .CodeMirror .CodeMirror-code .cm-link {
+    color: var(--blue) !important;
+}
+
+.EasyMDEContainer .CodeMirror .CodeMirror-code .cm-url {
+    color: var(--text-muted) !important;
+}
+
+.EasyMDEContainer .CodeMirror .CodeMirror-code .cm-comment {
+    color: var(--text-muted) !important;
+}
+
+.EasyMDEContainer .CodeMirror .CodeMirror-code .cm-strong {
+    color: var(--gold) !important;
+}
+
+.EasyMDEContainer .CodeMirror .CodeMirror-code .cm-em {
+    color: var(--text-secondary) !important;
+}
+
+.EasyMDEContainer .CodeMirror-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.6;
+}
+
+/* CodeMirror scrollbar */
+.EasyMDEContainer .CodeMirror-vscrollbar,
+.EasyMDEContainer .CodeMirror-hscrollbar {
+    outline: none !important;
+}
+
+/* Preview pane — dark mode */
+.EasyMDEContainer .editor-preview,
+.EasyMDEContainer .editor-preview-side {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border) !important;
+}
+
+.EasyMDEContainer .editor-preview h1,
+.EasyMDEContainer .editor-preview h2,
+.EasyMDEContainer .editor-preview h3,
+.EasyMDEContainer .editor-preview h4,
+.EasyMDEContainer .editor-preview-side h1,
+.EasyMDEContainer .editor-preview-side h2,
+.EasyMDEContainer .editor-preview-side h3,
+.EasyMDEContainer .editor-preview-side h4 {
+    color: var(--text-primary) !important;
+}
+
+.EasyMDEContainer .editor-preview a,
+.EasyMDEContainer .editor-preview-side a {
+    color: var(--blue) !important;
+}
+
+.EasyMDEContainer .editor-preview code,
+.EasyMDEContainer .editor-preview-side code {
+    background: var(--bg-surface) !important;
+    color: var(--green) !important;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.EasyMDEContainer .editor-preview pre,
+.EasyMDEContainer .editor-preview-side pre {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+}
+
+.EasyMDEContainer .editor-preview blockquote,
+.EasyMDEContainer .editor-preview-side blockquote {
+    border-left: 3px solid var(--green) !important;
+    color: var(--text-secondary) !important;
+    padding-left: 12px;
+}
+
+.EasyMDEContainer .editor-preview table td,
+.EasyMDEContainer .editor-preview table th,
+.EasyMDEContainer .editor-preview-side table td,
+.EasyMDEContainer .editor-preview-side table th {
+    border-color: var(--border) !important;
+}
+
+/* Status bar (if shown) */
+.EasyMDEContainer .editor-statusbar {
+    background: var(--bg-surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text-muted) !important;
+}
+
+/* Fullscreen mode */
+.EasyMDEContainer .editor-toolbar.fullscreen {
+    background: var(--bg-card) !important;
+}
+
+.EasyMDEContainer .CodeMirror-fullscreen {
+    background: var(--bg-card) !important;
+}
+
+.EasyMDEContainer .editor-preview-active-side {
+    background: var(--bg-card) !important;
+}
+
 .matchmaker-metric {
     text-align: center;
     padding: 6px;

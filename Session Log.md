@@ -812,3 +812,89 @@ Changed:
 ### Next Session Prompt:
 
 > Session added 4 major features: Discover hub (Matchmaker swipe UI + Congress + Insider + Social + Options flow), Trade Actions page (automated recommendations), What-If Calculator, and Settings page. Created `discovery.py` (1,148 lines) and 4 new frontend JS modules. Fixed 4 bugs: Capitol Trades parser, OpenInsider column indices, yfinance NaN handling, async event loop blocking. All scrapers verified working. Server runs on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.
+
+---
+
+## 2026-03-30 (Session 2) — Stock Detail Page Gridstack Rewrite + New Widgets
+
+**Focus:** Complete rewrite of the stock detail page — converted from a static 2-column layout to a gridstack.js widget system with draggable/resizable sections, added 4 new widgets (Related Stocks, Insider Trading, Social Trending, Trade Calculator), added chart hover tooltips, company name in header, and EasyMDE dark mode CSS.
+
+### Completed:
+
+#### Stock Detail Page — Gridstack Widget System (`stock.js`)
+- [x] **Full rewrite** — replaced old 2-column layout with gridstack.js 10.3.1 widget grid
+- [x] **15 widgets** — Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
+- [x] **Edit mode** — "Customize" button toggles drag/resize with visual handles (same UX as dashboard)
+- [x] **Global layout persistence** — saved to `localStorage` key `sd_stock_detail_layout` (shared across all symbols)
+- [x] **Reset Layout** button — clears saved layout and reverts to defaults
+- [x] **Min sizes** — enforced per widget (e.g., chart ≥ 4×6, notes ≥ 3×3)
+
+#### New Feature: Company Name in Header
+- [x] Company name displayed below symbol in stock detail header (e.g., "Apple Inc.")
+- [x] Populated from fundamentals API response (`data.name`)
+
+#### New Feature: Chart Hover Tooltip (OHLCV)
+- [x] Crosshair move subscription on candlestick chart
+- [x] Floating tooltip shows Open, High, Low, Close, Volume on hover
+- [x] Positioned near crosshair, dark themed, auto-hides when cursor leaves chart
+
+#### New Feature: Related Stocks / Sympathy Play Widget
+- [x] Finnhub `/stock/peers` API integration
+- [x] Clickable peer cards with daily % change (green/red color coding)
+- [x] Cards link to stock detail page for each peer
+
+#### New Feature: Insider Trading Widget (Light Copy from Investigator)
+- [x] Calls existing `/api/stock/{symbol}/insider` endpoint
+- [x] Summary bar — total buys, total sells, net signal badge (bullish/bearish/neutral)
+- [x] Paginated trade table — 5 rows at a time with "Show more" button
+- [x] Columns: Date, Insider, Title, Type, Shares, Value
+
+#### New Feature: Social Trending Widget
+- [x] Calls new `/api/stock/{symbol}/social` endpoint
+- [x] Shows sentiment score, mention count, sentiment label
+- [x] Recent posts list with subreddit badges and upvote counts
+- [x] Empty state when Reddit API is not configured (explains how to set up)
+
+#### New Feature: Indicators Flow Layout
+- [x] Indicators now render in a CSS grid with `auto-fit, minmax(140px, 1fr)` wrap
+- [x] Cards reflow dynamically when widget is resized
+
+#### EasyMDE Dark Mode CSS
+- [x] Comprehensive CSS overrides for EasyMDE markdown editor
+- [x] Toolbar, editor area, preview pane, status bar, syntax highlighting all themed
+- [x] Uses existing CSS custom properties (--bg-card, --border, --text-primary, etc.)
+- [x] Fullscreen mode, scrollbars, and cursor all styled
+
+#### Backend — New API Endpoints (`server.py`)
+- [x] `GET /api/stock/{symbol}/peers` — Finnhub peers API + yfinance price enrichment (name, price, daily change %)
+- [x] `GET /api/stock/{symbol}/social` — Reddit social mentions for a specific symbol from cached data, with `configured: true/false` indicator for empty state
+
+### Files Changed:
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `frontend/js/stock.js` | Rewritten (~1,100 lines) | Gridstack widget system, 15 widgets, all new features |
+| `backend/server.py` | Modified | 2 new API endpoints (peers, social) |
+| `frontend/css/styles.css` | Modified | ~300+ lines: stock gridstack, chart tooltip, indicators flow, related stocks, social trending, EasyMDE dark mode |
+
+### Testing Notes:
+
+- ✅ Server starts cleanly — all new endpoints registered
+- ✅ `/api/stock/AAPL/peers` → 200 OK (returns peer symbols with prices)
+- ✅ `/api/stock/AAPL/social` → 200 OK (returns social data or empty state)
+- ✅ `/api/stock/AAPL/insider` → 200 OK
+- ✅ All existing endpoints still functional (fundamentals, earnings, notes)
+- ✅ JS syntax validation passed
+- ✅ Python syntax validation passed
+- ✅ Backup of original stock.js saved as stock.js.bak
+
+### Next Steps:
+
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support (4h, 1h candles)
+- [ ] Alert notifications (email/push when signals fire)
+- [ ] Deploy to Linux server (Nginx + systemd)
+
+### Next Session Prompt:
+
+> Stock detail page completely rewritten with gridstack.js widget system — 15 draggable/resizable widgets with global layout persistence. New widgets: Related Stocks (Finnhub peers), Insider Trading, Social Trending (Reddit), Trade Calculator. Chart now has OHLCV hover tooltip. Company name shows in header. EasyMDE notes editor has dark mode CSS. Two new backend endpoints: /api/stock/{symbol}/peers and /api/stock/{symbol}/social. All tested and working on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.
