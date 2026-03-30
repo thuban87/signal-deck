@@ -1574,31 +1574,106 @@ a:hover { color: var(--text-primary); }
 }
 
 /* ---------------------------------------------------------------------------
+   Mobile Hamburger Button & Sidebar Overlay
+   --------------------------------------------------------------------------- */
+.hamburger-btn {
+    display: none;           /* hidden on desktop */
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 1100;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border);
+    transition: background var(--transition-fast);
+}
+
+.hamburger-btn:hover {
+    background: var(--bg-card);
+}
+
+.hamburger-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+.sidebar-overlay {
+    display: none;           /* hidden on desktop */
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.sidebar-overlay.visible {
+    opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
    Responsive
    --------------------------------------------------------------------------- */
 @media (max-width: 768px) {
-    .sidebar {
-        width: 60px;
+    /* Show hamburger button */
+    .hamburger-btn {
+        display: flex;
     }
 
-    .sidebar-logo span,
-    .nav-item span,
-    .nav-badge,
-    .data-source-badge span:not(.source-dot) {
-        display: none;
+    /* Sidebar: off-screen drawer on mobile */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 80vw;
+        max-width: 320px;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: none;
+    }
+
+    .sidebar.mobile-open {
+        transform: translateX(0);
+        box-shadow: var(--shadow-lg);
+    }
+
+    /* Show text labels when sidebar is open */
+    .sidebar.mobile-open .sidebar-logo span,
+    .sidebar.mobile-open .nav-item span,
+    .sidebar.mobile-open .nav-badge,
+    .sidebar.mobile-open .data-source-badge span:not(.source-dot) {
+        display: inline;
+    }
+
+    /* Show overlay when sidebar is open */
+    .sidebar-overlay {
+        display: block;
     }
 
     .nav-item {
-        justify-content: center;
-        padding: 12px;
+        justify-content: flex-start;
+        padding: 12px 16px;
     }
 
     .nav-item.active::before {
-        display: none;
+        display: block;
     }
 
+    /* Main content takes full width */
     .main-content {
         padding: 16px;
+        padding-top: 64px;   /* space for hamburger */
     }
 
     .stock-detail-grid {

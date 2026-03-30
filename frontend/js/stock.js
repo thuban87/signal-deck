@@ -35,6 +35,11 @@ const StockDetail = {
     ],
 
     LAYOUT_KEY: 'sd_stock_detail_layout',
+    LAYOUT_KEY_MOBILE: 'sd_stock_detail_layout_mobile',
+
+    getLayoutKey() {
+        return App.isMobile() ? this.LAYOUT_KEY_MOBILE : this.LAYOUT_KEY;
+    },
 
     async render(container, symbol) {
         this.symbol = symbol;
@@ -102,7 +107,7 @@ const StockDetail = {
         document.getElementById('stock-edit-layout-btn').addEventListener('click', () => this.toggleEditMode());
         document.getElementById('stock-done-layout-btn').addEventListener('click', () => this.toggleEditMode());
         document.getElementById('stock-reset-layout-btn').addEventListener('click', () => {
-            localStorage.removeItem(this.LAYOUT_KEY);
+            localStorage.removeItem(this.getLayoutKey());
             this.editMode = false;
             this.render(container, symbol);
         });
@@ -407,12 +412,12 @@ const StockDetail = {
         this.grid.engine.nodes.forEach(n => {
             items.push({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h });
         });
-        localStorage.setItem(this.LAYOUT_KEY, JSON.stringify(items));
+        localStorage.setItem(this.getLayoutKey(), JSON.stringify(items));
     },
 
     loadLayout() {
         try {
-            const data = localStorage.getItem(this.LAYOUT_KEY);
+            const data = localStorage.getItem(this.getLayoutKey());
             return data ? JSON.parse(data) : null;
         } catch { return null; }
     },

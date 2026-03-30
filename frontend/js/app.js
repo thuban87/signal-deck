@@ -359,8 +359,45 @@ const App = {
             if (e.key === 'Enter') document.getElementById('quick-log-submit').click();
         });
 
+        // Mobile sidebar hamburger
+        const hamburgerBtn = document.getElementById('hamburger-btn');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+        hamburgerBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('mobile-open');
+            sidebarOverlay.classList.toggle('hidden');
+            // trigger opacity transition
+            requestAnimationFrame(() => {
+                sidebarOverlay.classList.toggle('visible', sidebar.classList.contains('mobile-open'));
+            });
+        });
+
+        sidebarOverlay.addEventListener('click', () => {
+            this.closeMobileSidebar();
+        });
+
+        // Close sidebar when a nav link is clicked (mobile)
+        document.querySelectorAll('.nav-item').forEach(el => {
+            el.addEventListener('click', () => {
+                this.closeMobileSidebar();
+            });
+        });
+
         // Initial route
         this.handleRoute();
+    },
+
+    closeMobileSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('visible');
+        setTimeout(() => overlay.classList.add('hidden'), 300);
+    },
+
+    isMobile() {
+        return window.matchMedia('(max-width: 768px)').matches;
     },
 };
 

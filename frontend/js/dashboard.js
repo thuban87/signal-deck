@@ -29,6 +29,11 @@ const Dashboard = {
     ],
 
     LAYOUT_KEY: 'sd_dashboard_layout',
+    LAYOUT_KEY_MOBILE: 'sd_dashboard_layout_mobile',
+
+    getLayoutKey() {
+        return App.isMobile() ? this.LAYOUT_KEY_MOBILE : this.LAYOUT_KEY;
+    },
 
     async render(container) {
         container.innerHTML = `
@@ -87,7 +92,7 @@ const Dashboard = {
         document.getElementById('edit-layout-btn').addEventListener('click', () => this.toggleEditMode());
         document.getElementById('done-layout-btn').addEventListener('click', () => this.toggleEditMode());
         document.getElementById('reset-layout-btn').addEventListener('click', () => {
-            localStorage.removeItem(this.LAYOUT_KEY);
+            localStorage.removeItem(this.getLayoutKey());
             this.editMode = false;
             this.render(container);
         });
@@ -367,12 +372,12 @@ const Dashboard = {
                 h: node.h,
             };
         });
-        localStorage.setItem(this.LAYOUT_KEY, JSON.stringify(layout));
+        localStorage.setItem(this.getLayoutKey(), JSON.stringify(layout));
     },
 
     loadLayout() {
         try {
-            const data = localStorage.getItem(this.LAYOUT_KEY);
+            const data = localStorage.getItem(this.getLayoutKey());
             return data ? JSON.parse(data) : null;
         } catch { return null; }
     },
