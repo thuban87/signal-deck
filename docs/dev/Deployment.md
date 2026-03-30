@@ -1,32 +1,39 @@
 # Signal Deck — Deployment Guide
 
+## Architecture
+
+```
+Internet → Cloudflare (DNS proxy + SSL) → Your server :443
+  → Nginx (terminates SSL with Cloudflare origin cert)
+    → reverse proxy → uvicorn :8005
+```
+
+Domain: `signal-deck.bradwales.com` (A record → external IP, proxied by Cloudflare)
+
+---
+
 ## Local Development (Windows)
 
 ```bash
-# From project root
 pip install -r requirements.txt
-
-# Copy and edit env file
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run the server
-cd backend
-python server.py
-# Opens at http://localhost:8000
+cp .env.example .env   # edit with your credentials
+cd backend && python server.py
+# Opens at http://localhost:8005
 ```
 
-## Production Deployment (Linux + Nginx)
+---
 
-### 1. Clone the repo on your server
+## Production Setup (Linux + Nginx + Cloudflare)
+
+### 1. Clone the repo
 
 ```bash
 cd /opt
-git clone <your-repo-url> trading-dashboard
-cd trading-dashboard
+git clone <your-repo-url> signal-deck
+cd signal-deck
 ```
 
-### 2. Set up Python environment
+### 2. Python environment
 
 ```bash
 python3 -m venv venv
@@ -34,30 +41,47 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Create production .env
+### 3. Production `.env`
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-**Important settings for production:**
-```
-AUTH_USERNAME=your_username
-AUTH_PASSWORD=a_strong_password_here
-JWT_SECRET=generate-a-random-64-char-string
-SERVER_HOST=127.0.0.1
-SERVER_PORT=8000
-ALPACA_API_KEY=your_key
-ALPACA_SECRET_KEY=your_secret
+#### Generate a hashed password
+
+Use the helper script so the password is never stored in plaintext:
+
+```bash
+source /opt/signal-deck/venv/bin/activate
+python backend/hash_password.py
+# Enter your password at the prompt
+# Copy the output into .env
 ```
 
-Generate a secure JWT secret:
+#### Generate a JWT secret
+
 ```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-### 4. Create systemd service
+#### Key `.env` settings
+
+```
+AUTH_USERNAME=your_username
+AUTH_PASSWORD=$2b$12$...the-bcrypt-hash-from-above...
+JWT_SECRET=<64-char-random-hex>
+SERVER_HOST=127.0.0.1
+SERVER_PORT=8005
+ALPACA_API_KEY=your_key
+ALPACA_SECRET_KEY=your_secret
+FINNHUB_API_KEY=your_key
+```
+
+> The login endpoint supports both bcrypt-hashed and plaintext passwords.
+> Always use a hashed password in production.
+
+### 4. systemd service
 
 ```bash
 sudo nano /etc/systemd/system/signal-deck.service
@@ -70,10 +94,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/opt/trading-dashboard/backend
-Environment=PATH=/opt/trading-dashboard/venv/bin
-ExecStart=/opt/trading-dashboard/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8000
+User=bwales
+WorkingDirectory=/opt/signal-deck/backend
+Environment=PATH=/opt/signal-deck/venv/bin
+ExecStart=/opt/signal-deck/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8005
 Restart=always
 RestartSec=5
 
@@ -88,7 +112,18 @@ sudo systemctl start signal-deck
 sudo systemctl status signal-deck
 ```
 
-### 5. Nginx configuration
+### 5. Cloudflare origin certificate (HTTPS)
+
+You should already have your Cloudflare origin cert files. Copy them to the server:
+
+```bash
+sudo mkdir -p /etc/ssl/cloudflare
+sudo cp origin.pem /etc/ssl/cloudflare/signal-deck.pem
+sudo cp origin.key /etc/ssl/cloudflare/signal-deck.key
+sudo chmod 600 /etc/ssl/cloudflare/signal-deck.key
+```
+
+### 6. Nginx configuration
 
 ```bash
 sudo nano /etc/nginx/sites-available/signal-deck
@@ -96,11 +131,14 @@ sudo nano /etc/nginx/sites-available/signal-deck
 
 ```nginx
 server {
-    listen 80;
-    server_name your-domain.com;  # or your server IP
+    listen 443 ssl;
+    server_name signal-deck.bradwales.com;
+
+    ssl_certificate     /etc/ssl/cloudflare/signal-deck.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/signal-deck.key;
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8005;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -112,6 +150,13 @@ server {
         proxy_set_header Connection "upgrade";
     }
 }
+
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    server_name signal-deck.bradwales.com;
+    return 301 https://$host$request_uri;
+}
 ```
 
 ```bash
@@ -120,17 +165,31 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 6. HTTPS (recommended for remote access)
+> **Cloudflare SSL mode:** Set to **Full (strict)** in the Cloudflare dashboard
+> (SSL/TLS → Overview) since you're using a valid origin certificate.
 
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
+---
+
+## Deploying Updates
+
+### From your Windows machine
+
+```
+deploy.bat
 ```
 
-### 7. Updating
+This SSHs into the server and runs `deploy.sh`, which:
+1. Pulls latest from `main`
+2. Installs/updates pip dependencies
+3. Restarts the `signal-deck` systemd service
+4. Prints service status
+
+### Manually on the server
 
 ```bash
-cd /opt/trading-dashboard
-git pull
+cd /opt/signal-deck
+git pull origin main
+source venv/bin/activate
+pip install -r requirements.txt
 sudo systemctl restart signal-deck
 ```

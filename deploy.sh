@@ -1,0 +1,33 @@
+#!/bin/bash
+# Signal Deck — deployment script (runs on the server)
+set -e
+
+APP_DIR="/opt/signal-deck"
+VENV="$APP_DIR/venv"
+SERVICE="signal-deck"
+
+echo "=== Signal Deck Deploy ==="
+
+cd "$APP_DIR"
+
+echo "[1/4] Pulling latest from main..."
+git pull origin main
+
+if [ ! -d "$VENV" ]; then
+    echo "[2/4] Creating venv + installing dependencies..."
+    python3 -m venv "$VENV"
+else
+    echo "[2/4] Installing/updating dependencies..."
+fi
+source "$VENV/bin/activate"
+pip install -q -r requirements.txt
+
+echo "[3/4] Restarting service..."
+sudo systemctl restart "$SERVICE"
+
+echo "[4/4] Checking status..."
+sleep 2
+sudo systemctl status "$SERVICE" --no-pager -l
+
+echo ""
+echo "=== Deploy complete ==="

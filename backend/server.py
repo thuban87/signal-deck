@@ -12,6 +12,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 
+import bcrypt as _bcrypt
+
 from config import (
     SERVER_HOST, SERVER_PORT,
     AUTH_USERNAME, AUTH_PASSWORD, JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_HOURS,
@@ -143,7 +145,14 @@ async def login(body: dict = Body(...)):
     """Login with username/password, returns JWT token."""
     username = body.get("username", "")
     password = body.get("password", "")
-    if username == AUTH_USERNAME and password == AUTH_PASSWORD:
+    if username != AUTH_USERNAME:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Support both bcrypt-hashed and plaintext passwords in .env
+    if AUTH_PASSWORD.startswith("$2b$") or AUTH_PASSWORD.startswith("$2a$"):
+        valid = _bcrypt.checkpw(password.encode(), AUTH_PASSWORD.encode())
+    else:
+        valid = password == AUTH_PASSWORD
+    if valid:
         token = create_token(username)
         return {"token": token, "username": username, "expires_hours": JWT_EXPIRE_HOURS}
     raise HTTPException(status_code=401, detail="Invalid credentials")
