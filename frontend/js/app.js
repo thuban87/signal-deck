@@ -181,6 +181,9 @@ const App = {
             case 'settings':
                 Settings.render(content);
                 break;
+            case 'performance':
+                Performance.render(content);
+                break;
             default:
                 this.navigate('#/dashboard');
         }

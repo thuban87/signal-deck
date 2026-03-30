@@ -3584,6 +3584,520 @@ a.quick-log-resolved.ql-stock-link:hover {
     color: var(--gold) !important;
 }
 
+
+/* =====================================================================
+   Market Status Widget — Economic Calendar
+   ===================================================================== */
+
+.market-status-section {
+    padding: 0;
+}
+
+.market-status-banner {
+    border-radius: 12px;
+    padding: 16px;
+    transition: all var(--transition-base);
+}
+
+.market-status-clear {
+    background: rgba(0, 212, 170, 0.06);
+    border: 1px solid rgba(0, 212, 170, 0.15);
+}
+
+.market-status-yellow {
+    background: rgba(255, 193, 7, 0.08);
+    border: 1px solid rgba(255, 193, 7, 0.25);
+}
+
+.market-status-red {
+    background: rgba(255, 71, 87, 0.08);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.market-status-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.market-status-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.market-status-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.market-status-text strong {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.market-status-text span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.market-status-impact-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.impact-high {
+    background: rgba(255, 71, 87, 0.15);
+    color: var(--red);
+}
+
+.impact-medium {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+
+.market-event-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.market-event-list.compact {
+    gap: 4px;
+}
+
+.market-event-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    transition: background var(--transition-base);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.market-event-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.market-event-item:hover .event-name {
+    color: var(--blue);
+}
+
+/* Recently passed events */
+.event-passed {
+    opacity: 0.55;
+    border-left: 3px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.event-passed:hover {
+    opacity: 0.85;
+}
+
+.event-passed-badge {
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: var(--text-muted) !important;
+}
+
+.market-event-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 2px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.market-event-divider::before,
+.market-event-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.event-urgent {
+    background: rgba(255, 71, 87, 0.06);
+    border-left: 3px solid var(--red);
+}
+
+.event-warning {
+    background: rgba(255, 193, 7, 0.05);
+    border-left: 3px solid #ffc107;
+}
+
+.event-safe {
+    background: rgba(0, 212, 170, 0.03);
+    border-left: 3px solid rgba(0, 212, 170, 0.3);
+}
+
+.event-cat-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.event-name {
+    flex: 1;
+    color: var(--text-primary);
+    font-weight: 500;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-date {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+}
+
+.event-countdown-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.event-urgent .event-countdown-badge {
+    background: rgba(255, 71, 87, 0.2);
+    color: var(--red);
+}
+
+.event-warning .event-countdown-badge {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+}
+
+
+/* Stock detail macro events mini banner */
+.market-status-mini {
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.macro-nearest {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+}
+
+.macro-nearest-icon {
+    font-size: 0.9rem;
+}
+
+.macro-nearest-label {
+    color: var(--text-secondary);
+}
+
+.macro-nearest-label strong {
+    color: var(--text-primary);
+}
+
+
+/* =====================================================================
+   Performance Analytics Page
+   ===================================================================== */
+
+.perf-source-badge {
+    margin-bottom: 16px;
+}
+
+.source-indicator {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+
+.perf-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.perf-metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    transition: border-color var(--transition-base), transform var(--transition-base);
+}
+
+.perf-metric-card:hover {
+    border-color: rgba(74, 158, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.perf-metric-card.highlight {
+    border-color: var(--blue);
+    background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), var(--bg-card));
+}
+
+.perf-metric-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.perf-metric-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    line-height: 1.2;
+}
+
+.perf-metric-sub {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.metric-positive {
+    color: var(--green) !important;
+}
+
+.metric-negative {
+    color: var(--red) !important;
+}
+
+.perf-empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--bg-card);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+}
+
+.perf-empty-state h3 {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.perf-bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+    .perf-bottom-row {
+        grid-template-columns: 1fr;
+    }
+    .perf-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Win Rate by Tag */
+.perf-tag-card {
+    min-height: 200px;
+}
+
+.perf-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.perf-tag-row:last-child {
+    border-bottom: none;
+}
+
+.perf-tag-info {
+    min-width: 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.perf-tag-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    max-width: fit-content;
+}
+
+.perf-tag-trades {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.perf-tag-bar-container {
+    flex: 1;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+}
+
+.perf-tag-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+    opacity: 0.7;
+}
+
+.perf-tag-bar-label {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.perf-tag-stats {
+    min-width: 100px;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+}
+
+/* Trade Distribution Donut */
+.perf-dist-card {
+    min-height: 200px;
+}
+
+.perf-donut-section {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 16px;
+}
+
+.perf-donut {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    flex-shrink: 0;
+}
+
+.perf-donut-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.perf-donut-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.05);
+    stroke-width: 3.5;
+}
+
+.perf-donut-win {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.8s ease;
+}
+
+.perf-donut-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.perf-donut-value {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.perf-donut-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.perf-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.perf-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.perf-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.perf-extra-stats {
+    padding: 0 16px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.perf-stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.perf-stat-row:last-child {
+    border-bottom: none;
+}
+
+
 .EasyMDEContainer .CodeMirror .CodeMirror-code .cm-em {
     color: var(--text-secondary) !important;
 }

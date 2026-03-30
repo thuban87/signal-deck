@@ -20,12 +20,13 @@ const Dashboard = {
     // Widget definitions — id, title, default grid position, min sizes
     // Grid is 12 columns. minW/minH are in grid units.
     widgetDefs: [
-        { id: 'signals-alert', title: 'Signal Alerts',       defaultX: 0, defaultY: 0, defaultW: 12, defaultH: 1, minW: 6,  minH: 1 },
-        { id: 'baskets',       title: 'Your Baskets',        defaultX: 0, defaultY: 1, defaultW: 12, defaultH: 4, minW: 4,  minH: 3 },
-        { id: 'sector-heatmap',title: 'Sector Heatmap',      defaultX: 0, defaultY: 5, defaultW: 12, defaultH: 4, minW: 4,  minH: 3 },
-        { id: 'quick-log',     title: '🚗 Look Into Later',  defaultX: 0, defaultY: 9, defaultW: 6,  defaultH: 4, minW: 3,  minH: 3 },
-        { id: 'watchlist',     title: 'Watchlist',            defaultX: 0, defaultY: 13,defaultW: 12, defaultH: 6, minW: 6,  minH: 4 },
-        { id: 'screener',      title: 'Screener',            defaultX: 0, defaultY: 19,defaultW: 12, defaultH: 5, minW: 6,  minH: 3 },
+        { id: 'market-status', title: '⚡ Market Status',     defaultX: 0, defaultY: 0, defaultW: 12, defaultH: 3, minW: 6,  minH: 2 },
+        { id: 'signals-alert', title: 'Signal Alerts',       defaultX: 0, defaultY: 3, defaultW: 12, defaultH: 1, minW: 6,  minH: 1 },
+        { id: 'baskets',       title: 'Your Baskets',        defaultX: 0, defaultY: 4, defaultW: 12, defaultH: 4, minW: 4,  minH: 3 },
+        { id: 'sector-heatmap',title: 'Sector Heatmap',      defaultX: 0, defaultY: 8, defaultW: 12, defaultH: 4, minW: 4,  minH: 3 },
+        { id: 'quick-log',     title: '🚗 Look Into Later',  defaultX: 0, defaultY: 12,defaultW: 6,  defaultH: 4, minW: 3,  minH: 3 },
+        { id: 'watchlist',     title: 'Watchlist',            defaultX: 0, defaultY: 16,defaultW: 12, defaultH: 6, minW: 6,  minH: 4 },
+        { id: 'screener',      title: 'Screener',            defaultX: 0, defaultY: 22,defaultW: 12, defaultH: 5, minW: 6,  minH: 3 },
     ],
 
     LAYOUT_KEY: 'sd_dashboard_layout',
@@ -160,6 +161,7 @@ const Dashboard = {
         this.loadSectorHeatmap();
         this.loadBaskets();
         this.loadQuickLogs();
+        this.loadMarketStatus();
     },
 
     initGrid() {
@@ -207,6 +209,8 @@ const Dashboard = {
 
     getWidgetPlaceholder(id) {
         switch (id) {
+            case 'market-status':
+                return '<div id="market-status-section" class="market-status-section"><div class="loading-text">Loading economic calendar...</div></div>';
             case 'signals-alert':
                 return '<div id="signal-alert-area"></div>';
             case 'baskets':
@@ -1415,6 +1419,103 @@ const Dashboard = {
 
     refreshQuickLogs() {
         this.loadQuickLogs();
+    },
+
+    // ---------------------------------------------------------------
+    // Market Status — Economic Calendar Widget
+    // ---------------------------------------------------------------
+    async loadMarketStatus() {
+        const section = document.getElementById('market-status-section');
+        if (!section) return;
+
+        try {
+            const events = await App.get('/api/economic-events?days=14');
+            if (!events || events.length === 0) {
+                section.innerHTML = `
+                    <div class="market-status-banner market-status-clear">
+                        <div class="market-status-icon">✅</div>
+                        <div class="market-status-text">
+                            <strong>All Clear</strong>
+                            <span>No major economic events in the next 14 days</span>
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            // Separate past and upcoming events
+            const upcoming = events.filter(e => e.days_until >= 0);
+            const recent = events.filter(e => e.days_until < 0).reverse(); // Most recent first
+            const nearest = upcoming.length > 0 ? upcoming[0] : null;
+
+            const isImminent = nearest && nearest.days_until <= 1;
+            const isWarning = nearest && nearest.days_until <= 3;
+            const bannerClass = !nearest ? 'market-status-clear' : isImminent ? 'market-status-red' : isWarning ? 'market-status-yellow' : 'market-status-clear';
+            const statusIcon = !nearest ? '✅' : isImminent ? '🔴' : isWarning ? '🟡' : '🟢';
+
+            const countdownText = !nearest ? 'No upcoming events'
+                : nearest.days_until === 0 ? 'TODAY'
+                : nearest.days_until === 1 ? 'TOMORROW'
+                : `in ${nearest.days_until} days`;
+
+            const makeSearchUrl = (e) => `https://www.google.com/search?q=${encodeURIComponent(e.event + ' ' + e.date + ' results')}`;
+
+            // Build upcoming event list (show next 5)
+            const upcomingHtml = upcoming.slice(0, 5).map(e => {
+                const dayLabel = e.days_until === 0 ? 'TODAY' : e.days_until === 1 ? 'Tomorrow' : `${e.days_until}d`;
+                const urgencyClass = e.days_until <= 1 ? 'event-urgent' : e.days_until <= 3 ? 'event-warning' : 'event-safe';
+                const catIcon = this._eventCategoryIcon(e.category);
+                return `
+                    <a href="${makeSearchUrl(e)}" target="_blank" rel="noopener" class="market-event-item ${urgencyClass}" title="Search for results">
+                        <span class="event-cat-icon">${catIcon}</span>
+                        <span class="event-name">${App.escapeHtml(e.event)}</span>
+                        <span class="event-date">${e.date}</span>
+                        <span class="event-countdown-badge">${dayLabel}</span>
+                    </a>`;
+            }).join('');
+
+            // Build recent past event list (show last 3)
+            const recentHtml = recent.length > 0 ? `
+                <div class="market-event-divider"><span>Recently Passed</span></div>
+                ${recent.slice(0, 3).map(e => {
+                    const daysAgo = Math.abs(e.days_until);
+                    const dayLabel = daysAgo === 1 ? '1d ago' : `${daysAgo}d ago`;
+                    const catIcon = this._eventCategoryIcon(e.category);
+                    return `
+                        <a href="${makeSearchUrl(e)}" target="_blank" rel="noopener" class="market-event-item event-passed" title="Search for results">
+                            <span class="event-cat-icon">${catIcon}</span>
+                            <span class="event-name">${App.escapeHtml(e.event)}</span>
+                            <span class="event-date">${e.date}</span>
+                            <span class="event-countdown-badge event-passed-badge">${dayLabel}</span>
+                        </a>`;
+                }).join('')}
+            ` : '';
+
+            section.innerHTML = `
+                <div class="market-status-banner ${bannerClass}">
+                    <div class="market-status-header">
+                        <div class="market-status-icon">${statusIcon}</div>
+                        <div class="market-status-text">
+                            <strong>${nearest ? App.escapeHtml(nearest.event) : 'All Clear'}</strong>
+                            <span>${nearest ? `${countdownText} — ${nearest.date}` : 'No major events in the next 14 days'}</span>
+                        </div>
+                        ${nearest ? `<div class="market-status-impact-badge impact-${nearest.impact}">${nearest.impact.toUpperCase()}</div>` : ''}
+                    </div>
+                    <div class="market-event-list">
+                        ${upcomingHtml}
+                        ${recentHtml}
+                    </div>
+                </div>`;
+        } catch (err) {
+            section.innerHTML = `<div class="text-muted" style="padding:12px">Economic calendar unavailable</div>`;
+        }
+    },
+
+    _eventCategoryIcon(category) {
+        const icons = {
+            fed: '🏦', inflation: '📊', employment: '👔', gdp: '📈',
+            consumer: '🛒', housing: '🏠', other: '📅'
+        };
+        return icons[category] || '📅';
     },
 
     timeAgo(dateStr) {

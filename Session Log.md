@@ -988,3 +988,138 @@ Changed:
 ### Next Session Prompt:
 
 > Mobile UX overhaul complete. Sidebar replaced with hamburger menu + 80vw drawer overlay. Dashboard and stock detail have separate mobile/desktop layout persistence via `getLayoutKey()`. Gridstack edit mode has a scroll handle bar for touch devices. Overflow fixed across Paper Trading, Investigator, Stock Detail. Bottom cutoff fixed with `100dvh` + padding. All static assets cache-busted at `?v=3`. Server runs on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.
+
+---
+
+## 2026-03-30 (Session 4) — Macro Economic Warning System + Performance Analytics
+
+**Focus:** Two new features — Macro Economic Warning System (curated economic calendar with market status banners) and Live Performance Analytics page. Also added Alpha Vantage API integration, sidebar reorganization, and event clickability/past-event display.
+
+### Completed:
+
+#### Feature 1: Macro Economic Warning System
+
+**Backend — Economic Events Engine (`economic_events.py`, new file)**
+- [x] Curated 2025-2026 economic calendar: FOMC (8/year), CPI (12/year), Jobs Report (12/year), GDP (4/year)
+- [x] Dates from Federal Reserve, BLS, and BEA published schedules
+- [x] Sector-to-category relevance mapping (e.g., Financial → fed/gdp, Consumer → inflation/employment)
+- [x] Index tickers (SPY, QQQ, etc.) get all event categories
+- [x] Finnhub economic calendar supplement (medium + high impact events)
+- [x] Alpha Vantage economic indicator supplement (when API key configured)
+- [x] In-memory cache with 1-hour TTL, deduplication across sources
+- [x] **Past 7 days included** — recently passed events returned with `passed: true` flag
+- [x] `get_upcoming_events(days_ahead)` — all events within lookback + lookahead window
+- [x] `get_events_for_stock(symbol, sector)` — sector-filtered events
+
+**Backend — API Endpoints (`server.py`)**
+- [x] `GET /api/economic-events?days=30` — all upcoming + recent macro events
+- [x] `GET /api/stock/{symbol}/economic-events?days=30` — sector-filtered events (auto-detects sector via yfinance)
+- [x] Config endpoint updated: `alpha_vantage_available` flag added
+
+**Frontend — Dashboard Market Status Widget (`dashboard.js`)**
+- [x] New gridstack widget: `market-status` (12 cols wide, top of dashboard)
+- [x] Color-coded banner: 🔴 red (≤1 day), 🟡 yellow (≤3 days), 🟢 green (>3 days)
+- [x] Nearest event headline with countdown (TODAY / TOMORROW / in N days)
+- [x] Impact badge (HIGH/MEDIUM)
+- [x] Next 5 upcoming events with category icons (🏦 Fed, 📊 Inflation, 👔 Employment, 📈 GDP)
+- [x] "Recently Passed" divider with last 3 past events (dimmed styling)
+- [x] **All events clickable** — links to Google search for event title + date + "results"
+- [x] "All Clear" state when no events within 14 days
+
+**Frontend — Stock Detail Macro Events Widget (`stock.js`)**
+- [x] New gridstack widget: `macro-events` (6 cols wide)
+- [x] Sector-filtered events — only shows categories relevant to the stock's sector
+- [x] Same clickable event items with past events and urgency styling
+- [x] Compact layout for widget context
+
+#### Feature 2: Live Performance Analytics Page
+
+**Backend — Performance API Endpoints (`server.py`)**
+- [x] `GET /api/performance/summary?period=all` — 14 advanced metrics:
+  - Win rate, profit factor, expectancy, max drawdown
+  - Sharpe ratio (approximated), risk/reward ratio
+  - Best trade, worst trade, consecutive wins/losses
+  - Average trade duration, total P&L
+  - Total trades, average return
+- [x] `GET /api/performance/equity-curve?period=all` — equity timeline data
+  - Alpaca mode: uses `get_portfolio_history()` API
+  - Local fallback: builds curve from paper trades starting at $200
+- [x] `GET /api/performance/by-tag?period=all` — win rate and P&L breakdown by watchlist tag
+- [x] Helper functions: `_get_performance_trades()`, `_filter_trades_by_period()`, `_calc_max_drawdown()`, `_calc_consecutive()`, `_calc_avg_duration()`
+- [x] Auto-detects Alpaca vs local paper trades (same pattern as Paper Trading page)
+
+**Frontend — Performance Page (`performance.js`, new file)**
+- [x] Period filter: 1W, 1M, 3M, 6M, 1Y, All Time
+- [x] 14 metric cards in responsive grid — color-coded positive (green) / negative (red)
+- [x] Equity curve chart via TradingView Lightweight Charts (area chart)
+- [x] Win rate by tag — horizontal bar chart per watchlist tag
+- [x] Trade distribution — SVG donut chart with win/loss breakdown
+- [x] Empty state directing users to Paper Trading page when no trades exist
+
+#### Sidebar Reorganization
+- [x] New nav order: Dashboard → Discover → Investigator → Signals → Backtest → Paper Trading → Performance → [divider] → Settings
+- [x] Represents "the entire process in a common sense order" per user request
+- [x] Performance nav item with bar-chart SVG icon
+
+#### Infrastructure & Config
+- [x] `ALPHA_VANTAGE_API_KEY` added to `config.py`
+- [x] `.env.example` updated with Alpha Vantage placeholder
+- [x] Cache-busting versions bumped to `?v=5` on all CSS/JS tags in `index.html`
+
+### CSS Added (~450 lines):
+- [x] Market status banner: `.market-status-banner`, `.market-status-red/yellow/clear`
+- [x] Event items: `.market-event-item`, `.event-urgent/warning/safe/passed`
+- [x] Event divider: `.market-event-divider` with decorative line
+- [x] Clickable events: hover turns text blue, cursor pointer
+- [x] Past events: dimmed opacity (0.55), muted badge styling
+- [x] Impact badges: `.impact-high/medium`
+- [x] Performance page: `.perf-metrics-grid`, `.perf-metric-card`, `.metric-positive/negative`
+- [x] Equity curve and tag chart containers
+- [x] Donut chart: `.perf-donut-*` styles
+- [x] Responsive breakpoints for all new components
+
+### Bugs Fixed / Issues Resolved:
+- 🐛 **Browser cache serving stale files** — Initial `?v=3` cache-bust strings were identical to previous session. Bumped through `v=4` → `v=5` across iterations.
+- 🐛 **VS Code SSH port forwarding hijack** — VS Code's `remote.autoForwardPorts` feature was listening on `127.0.0.1:8005` and proxying cached content from a remote SSH session. Fixed by killing old Python process and restarting. Advised user to disable `remote.autoForwardPorts` in VS Code settings.
+- 🐛 **Old server process not killed** — Server PID from previous session was still running; new restarts spawned second processes. Required explicit `Stop-Process` by PID before restart.
+- 🐛 **httpx not in requirements** — Initially wrote `economic_events.py` with `httpx`; switched to `requests` (already a dependency).
+
+### Files Changed:
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `backend/economic_events.py` | New | Curated economic calendar + API supplements |
+| `backend/server.py` | Modified | 6 new endpoints (3 economic, 3 performance), config flag |
+| `backend/config.py` | Modified | Added `ALPHA_VANTAGE_API_KEY` |
+| `frontend/js/performance.js` | New | Performance analytics page |
+| `frontend/js/dashboard.js` | Modified | Market status widget added to gridstack |
+| `frontend/js/stock.js` | Modified | Macro events widget added to gridstack |
+| `frontend/js/app.js` | Modified | Added `performance` router case |
+| `frontend/index.html` | Modified | Sidebar reordered, Performance nav item, `performance.js` script, cache-bust `?v=5` |
+| `frontend/css/styles.css` | Modified | ~450 lines for market status + performance page |
+| `.env.example` | Modified | Added `ALPHA_VANTAGE_API_KEY` |
+
+### Testing Notes:
+
+- ✅ Server starts cleanly — all new endpoints registered, Alpaca connected
+- ✅ `/api/economic-events?days=14` returns upcoming FOMC, CPI, Jobs, GDP events
+- ✅ `/api/stock/AAPL/economic-events` returns sector-filtered events (Technology → fed, inflation, gdp)
+- ✅ Dashboard Market Status widget renders with color-coded banner and event list
+- ✅ Stock detail Macro Events widget shows sector-relevant events
+- ✅ All events are clickable — open Google search in new tab
+- ✅ Performance page renders skeleton correctly (empty state since no paper trades yet)
+- ✅ Sidebar reflects new nav order
+- ✅ Cache-busting confirmed working (server serves `v=5` files)
+- ⚠️ No recently passed events visible (expected — last events were FOMC 3/18 and CPI 3/11, both >7 days ago; next events start 4/3)
+- ⚠️ Performance page shows empty state — user hasn't done paper trading yet
+
+### Next Steps:
+
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support (4h, 1h candles)
+- [ ] Alert notifications (email/push when signals fire)
+- [ ] Deploy to Linux server (Nginx + systemd)
+
+### Next Session Prompt:
+
+> Session added Macro Economic Warning System (curated 2025-2026 calendar with Finnhub + Alpha Vantage supplements, dashboard banner + stock detail widget, clickable events with past 7 days shown) and Performance Analytics page (14 metrics, equity curve, win rate by tag, trade distribution donut). Sidebar reordered to logical flow. New backend module `economic_events.py`. Alpha Vantage API integrated. Cache-busting at `?v=5`. Server runs on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.

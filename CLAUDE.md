@@ -18,7 +18,9 @@ A full-stack trading signal dashboard that:
 13. **Trade Actions** — automated Buy/Sell/Hold recommendations with confidence levels
 14. **What-If Calculator** — historical trade simulation with candlestick chart and P&L
 15. **Settings** page — discovery tuning, Reddit config, options flow thresholds
-16. Optionally queries a local LLM (Ollama) for on-demand analysis
+16. **Macro Economic Warning System** — curated FOMC/CPI/Jobs/GDP calendar with market status banners
+17. **Performance Analytics** — equity curve, 14 advanced metrics, win rate by tag, trade distribution
+18. Optionally queries a local LLM (Ollama) for on-demand analysis
 
 **Not a live trading system.** All suggestions are for research and paper trading only.
 
@@ -34,6 +36,7 @@ Trading/
 │   ├── database.py            # SQLite: watchlist, signals, paper trades, tags, notes, discover
 │   ├── alpaca_client.py       # Alpaca SDK wrapper + paper trading API
 │   ├── discovery.py           # Discovery engine — scrapers, scanners, aggregators
+│   ├── economic_events.py     # Curated macro calendar + Finnhub/Alpha Vantage supplements
 │   ├── indicators.py          # Technical indicator computation
 │   ├── backtest_signals.py    # Signal finders + trade simulator (long+short)
 │   ├── data_fetcher.py        # yfinance data fetching
@@ -54,6 +57,7 @@ Trading/
 │       ├── discover.js        # Discover hub — Matchmaker, Congress, Insider, Social, Options
 │       ├── actions.js         # Trade actions — Buy/Sell/Hold recommendations
 │       ├── calculator.js      # What-if trade calculator with chart
+│       ├── performance.js     # Performance analytics — equity curve, metrics, win rate
 │       └── settings.js        # Settings page — discovery tuning
 ├── docs/dev/
 │   ├── Deployment.md          # Nginx + systemd deployment guide
@@ -177,7 +181,8 @@ Two modes, auto-detected at page load via `/api/config`:
 - **Reddit/PRAW:** Social momentum — ticker mentions + sentiment from wallstreetbets, stocks, investing, options (requires `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` in `.env`)
 - **VADER Sentiment:** NLP sentiment analysis on news headlines/summaries and Reddit posts
 - **Local DB:** SQLite for watchlist, signal history, local paper trades, tags, notes, discover data
-- **Config:** Set `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`, and optionally `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` in `.env`
+- **Alpha Vantage:** Economic indicator data (GDP, CPI, unemployment, Fed funds rate) for macro calendar supplement (requires `ALPHA_VANTAGE_API_KEY` in `.env`)
+- **Config:** Set `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`, `ALPHA_VANTAGE_API_KEY`, and optionally `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` in `.env`
 
 ---
 
@@ -228,7 +233,7 @@ Group related stocks into named baskets with emoji icons. 4 default baskets seed
 Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** for draggable/resizable widget layout.
 
 ### Dashboard Widgets
-- **6 widgets:** Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
+- **7 widgets:** Market Status, Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
 - **Edit mode:** "Customize" button toggles drag/resize with visual handles
 - **Min sizes:** enforced per widget (e.g., watchlist ≥ 6 cols, quick-log ≥ 3 cols)
 - **Persistence:** layout auto-saved to `localStorage`, restored on page load
@@ -236,7 +241,7 @@ Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** f
 - **Reset:** "Reset Layout" button clears saved layout for the current device and reverts to defaults
 
 ### Stock Detail Widgets
-- **15 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
+- **16 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Macro Events, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
 - **Edit mode:** same UX as dashboard — "Customize" button with drag/resize handles
 - **Global layout:** saved to `localStorage` keys `sd_stock_detail_layout` / `sd_stock_detail_layout_mobile` (shared across all symbols, separate per device)
 - **Chart hover tooltip:** OHLCV values displayed on crosshair move
@@ -307,6 +312,72 @@ Stored in SQLite `app_settings` table.
 
 ---
 
+## Macro Economic Warning System
+
+Curated calendar of high-impact macro events with real-time market status banners.
+
+### Data Sources
+- **Curated calendar:** 2025-2026 FOMC (8/year), CPI (12/year), Jobs Report (12/year), GDP (4/year) — dates from Fed Reserve, BLS, BEA published schedules
+- **Finnhub supplement:** Economic calendar API (medium + high impact events)
+- **Alpha Vantage supplement:** Economic indicator data (when `ALPHA_VANTAGE_API_KEY` configured)
+- In-memory cache with 1-hour TTL, deduplication across all sources
+
+### Dashboard Market Status Widget
+- Full-width banner at top of dashboard (12 cols)
+- Color-coded urgency: 🔴 red (≤1 day), 🟡 yellow (≤3 days), 🟢 green (>3 days), ✅ all clear
+- Nearest event headline with countdown (TODAY / TOMORROW / in N days)
+- Next 5 upcoming events with category icons (🏦 Fed, 📊 Inflation, 👔 Employment, 📈 GDP)
+- "Recently Passed" section — last 3 events from past 7 days (dimmed styling)
+- All events clickable — opens Google search for event title + date + results
+
+### Stock Detail Macro Events Widget
+- Sector-filtered events — shows only categories relevant to the stock's sector
+- Sector mapping: Financial → fed/gdp, Consumer → inflation/employment, Tech → fed/inflation/gdp, etc.
+- Index ETFs (SPY, QQQ, etc.) get all event categories
+- Same clickable links and past-event display as dashboard
+
+### Endpoints
+- `GET /api/economic-events?days=30` — all events within lookback + lookahead window
+- `GET /api/stock/{symbol}/economic-events?days=30` — sector-filtered events (auto-detects sector via yfinance)
+
+---
+
+## Performance Analytics
+
+Dedicated performance tracking page at `#/performance`.
+
+### Metrics (14 cards)
+- Total Trades, Win Rate, Average Return, Total P&L
+- Profit Factor, Expectancy, Max Drawdown, Sharpe Ratio
+- Risk/Reward Ratio, Best Trade, Worst Trade
+- Consecutive Wins, Consecutive Losses, Avg Trade Duration
+
+### Visualizations
+- **Equity Curve** — TradingView area chart, Alpaca portfolio history or local paper trade curve
+- **Win Rate by Tag** — horizontal bar chart per watchlist tag
+- **Trade Distribution** — SVG donut chart (wins vs losses)
+
+### Data Source
+- Auto-detects Alpaca vs local paper trades (same pattern as Paper Trading page)
+- Alpaca mode: real portfolio history + closed order data
+- Local fallback: builds from SQLite paper_trades table
+- Period filter: 1W, 1M, 3M, 6M, 1Y, All Time
+
+### Endpoints
+- `GET /api/performance/summary?period=all` — 14 metrics
+- `GET /api/performance/equity-curve?period=all` — equity timeline
+- `GET /api/performance/by-tag?period=all` — tag breakdown
+
+---
+
+## Sidebar Navigation Order
+
+Dashboard → Discover → Investigator → Signals → Backtest → Paper Trading → Performance → [divider] → Settings
+
+Represents the logical flow: overview → find stocks → research → analyze signals → validate → trade → measure results → configure.
+
+---
+
 ## Position Sizing
 
 ATR-based position sizing available on Signals, Stock Detail, and Paper Trading pages:
@@ -360,6 +431,12 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Mobile scroll handle for gridstack edit mode
 - [x] Mobile overflow fixes (Paper Trading, Investigator, Stock Detail)
 - [x] Bottom cutoff fix (`100dvh` + padding)
+- [x] Macro Economic Warning System — curated FOMC/CPI/Jobs/GDP calendar + Finnhub/Alpha Vantage supplements
+- [x] Dashboard Market Status widget (color-coded banner, clickable events, past 7 days)
+- [x] Stock detail Macro Events widget (sector-filtered)
+- [x] Performance Analytics page — 14 metrics, equity curve, win rate by tag, trade distribution
+- [x] Alpha Vantage API integration
+- [x] Sidebar reorder (logical flow: Dashboard → Discover → ... → Performance → Settings)
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)
 - [ ] Alert notifications (email/push when signals fire)

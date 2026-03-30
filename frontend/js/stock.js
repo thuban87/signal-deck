@@ -22,16 +22,17 @@ const StockDetail = {
         { id: 'action-card',      title: 'Signal Recommendation', defaultX: 0,  defaultY: 9,  defaultW: 4,  defaultH: 2,  minW: 3, minH: 2 },
         { id: 'earnings-warning', title: 'Earnings',              defaultX: 4,  defaultY: 9,  defaultW: 4,  defaultH: 2,  minW: 3, minH: 2 },
         { id: 'related-stocks',   title: 'Related Stocks',        defaultX: 8,  defaultY: 9,  defaultW: 4,  defaultH: 2,  minW: 3, minH: 2 },
-        { id: 'signals-list',     title: 'Active Signals',        defaultX: 0,  defaultY: 11, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
-        { id: 'fundamentals',     title: 'Fundamentals',          defaultX: 6,  defaultY: 11, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
-        { id: 'insider-trading',  title: 'Insider Trading',       defaultX: 0,  defaultY: 14, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'mini-news',        title: 'Recent News',           defaultX: 4,  defaultY: 14, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'social-trending',  title: 'Social Trending',       defaultX: 8,  defaultY: 14, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'position-sizing',  title: 'Position Sizing',       defaultX: 0,  defaultY: 18, defaultW: 6,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'notes',            title: 'Notes',                 defaultX: 6,  defaultY: 18, defaultW: 6,  defaultH: 4,  minW: 3, minH: 3 },
-        { id: 'trade-calculator', title: 'Trade Calculator',      defaultX: 0,  defaultY: 22, defaultW: 6,  defaultH: 5,  minW: 4, minH: 4 },
-        { id: 'simulations',      title: 'Saved Simulations',     defaultX: 6,  defaultY: 22, defaultW: 6,  defaultH: 5,  minW: 4, minH: 3 },
-        { id: 'llm-result',       title: 'LLM Analysis',          defaultX: 0,  defaultY: 27, defaultW: 12, defaultH: 3,  minW: 4, minH: 2 },
+        { id: 'macro-events',     title: 'Macro Events',          defaultX: 0,  defaultY: 11, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
+        { id: 'signals-list',     title: 'Active Signals',        defaultX: 6,  defaultY: 11, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
+        { id: 'fundamentals',     title: 'Fundamentals',          defaultX: 0,  defaultY: 14, defaultW: 6,  defaultH: 3,  minW: 3, minH: 2 },
+        { id: 'insider-trading',  title: 'Insider Trading',       defaultX: 6,  defaultY: 14, defaultW: 6,  defaultH: 4,  minW: 3, minH: 3 },
+        { id: 'mini-news',        title: 'Recent News',           defaultX: 0,  defaultY: 17, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
+        { id: 'social-trending',  title: 'Social Trending',       defaultX: 4,  defaultY: 17, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
+        { id: 'position-sizing',  title: 'Position Sizing',       defaultX: 8,  defaultY: 17, defaultW: 4,  defaultH: 4,  minW: 3, minH: 3 },
+        { id: 'notes',            title: 'Notes',                 defaultX: 0,  defaultY: 21, defaultW: 6,  defaultH: 4,  minW: 3, minH: 3 },
+        { id: 'trade-calculator', title: 'Trade Calculator',      defaultX: 6,  defaultY: 21, defaultW: 6,  defaultH: 5,  minW: 4, minH: 4 },
+        { id: 'simulations',      title: 'Saved Simulations',     defaultX: 0,  defaultY: 25, defaultW: 6,  defaultH: 5,  minW: 4, minH: 3 },
+        { id: 'llm-result',       title: 'LLM Analysis',          defaultX: 6,  defaultY: 25, defaultW: 6,  defaultH: 3,  minW: 4, minH: 2 },
     ],
 
     LAYOUT_KEY: 'sd_stock_detail_layout',
@@ -127,6 +128,7 @@ const StockDetail = {
         this.loadRelatedStocks();
         this.loadInsiderTrades();
         this.loadSocialTrending();
+        this.loadMacroEvents();
     },
 
     // --- GridStack initialization ---
@@ -212,6 +214,16 @@ const StockDetail = {
                 `;
             case 'signals-list':
                 return `<div id="signals-list-area"></div>`;
+            case 'macro-events':
+                return `
+                    <div class="stock-widget-header">
+                        <h3>Macro Events</h3>
+                        <span class="text-muted" style="font-size:0.7rem">Sector-relevant</span>
+                    </div>
+                    <div id="macro-events-content">
+                        <div class="loading-spinner"><div class="spinner"></div></div>
+                    </div>
+                `;
             case 'fundamentals':
                 return `
                     <div class="stock-widget-header">
@@ -1586,6 +1598,87 @@ const StockDetail = {
             `;
         } catch (e) {
             contentEl.innerHTML = '<p class="text-muted" style="padding:12px;font-size:0.85rem">Failed to load social data</p>';
+        }
+    },
+
+    // ---------------------------------------------------------------
+    // Macro Economic Events (stock-specific)
+    // ---------------------------------------------------------------
+    async loadMacroEvents() {
+        const contentEl = document.getElementById('macro-events-content');
+        if (!contentEl) return;
+
+        try {
+            const events = await App.get(`/api/stock/${this.symbol}/economic-events?days=30`);
+
+            if (!events || events.length === 0) {
+                contentEl.innerHTML = `
+                    <div class="market-status-banner market-status-clear" style="padding:12px">
+                        <div style="text-align:center">
+                            <span style="font-size:1.2rem">✅</span>
+                            <div class="text-muted" style="font-size:0.8rem;margin-top:4px">No relevant macro events in the next 30 days</div>
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            const upcoming = events.filter(e => e.days_until >= 0);
+            const recent = events.filter(e => e.days_until < 0).reverse();
+            const nearest = upcoming.length > 0 ? upcoming[0] : null;
+
+            const makeSearchUrl = (e) => `https://www.google.com/search?q=${encodeURIComponent(e.event + ' ' + e.date + ' results')}`;
+
+            const eventHtml = upcoming.slice(0, 5).map(e => {
+                const dayLabel = e.days_until === 0 ? 'TODAY' : e.days_until === 1 ? 'Tomorrow' : `${e.days_until}d`;
+                const urgencyClass = e.days_until <= 1 ? 'event-urgent' : e.days_until <= 3 ? 'event-warning' : 'event-safe';
+                const catIcons = { fed: '🏦', inflation: '📊', employment: '👔', gdp: '📈', consumer: '🛒', housing: '🏠', other: '📅' };
+                const catIcon = catIcons[e.category] || '📅';
+
+                return `
+                    <a href="${makeSearchUrl(e)}" target="_blank" rel="noopener" class="market-event-item ${urgencyClass}" title="Search for results">
+                        <span class="event-cat-icon">${catIcon}</span>
+                        <span class="event-name">${App.escapeHtml(e.event)}</span>
+                        <span class="event-date">${e.date}</span>
+                        <span class="event-countdown-badge">${dayLabel}</span>
+                    </a>`;
+            }).join('');
+
+            const recentHtml = recent.length > 0 ? `
+                <div class="market-event-divider"><span>Recently Passed</span></div>
+                ${recent.slice(0, 3).map(e => {
+                    const daysAgo = Math.abs(e.days_until);
+                    const dayLabel = daysAgo === 1 ? '1d ago' : `${daysAgo}d ago`;
+                    const catIcons = { fed: '🏦', inflation: '📊', employment: '👔', gdp: '📈', consumer: '🛒', housing: '🏠', other: '📅' };
+                    const catIcon = catIcons[e.category] || '📅';
+                    return `
+                        <a href="${makeSearchUrl(e)}" target="_blank" rel="noopener" class="market-event-item event-passed" title="Search for results">
+                            <span class="event-cat-icon">${catIcon}</span>
+                            <span class="event-name">${App.escapeHtml(e.event)}</span>
+                            <span class="event-date">${e.date}</span>
+                            <span class="event-countdown-badge event-passed-badge">${dayLabel}</span>
+                        </a>`;
+                }).join('')}
+            ` : '';
+
+            const bannerClass = nearest && nearest.days_until <= 1 ? 'market-status-red'
+                : nearest && nearest.days_until <= 3 ? 'market-status-yellow'
+                : 'market-status-clear';
+
+            contentEl.innerHTML = `
+                <div class="market-status-mini ${bannerClass}">
+                    ${nearest ? `
+                        <div class="macro-nearest">
+                            <span class="macro-nearest-icon">${nearest.days_until <= 1 ? '🔴' : nearest.days_until <= 3 ? '🟡' : '🟢'}</span>
+                            <span class="macro-nearest-label">Next: <strong>${App.escapeHtml(nearest.event)}</strong> — ${nearest.days_until === 0 ? 'TODAY' : nearest.days_until === 1 ? 'Tomorrow' : `in ${nearest.days_until} days`}</span>
+                        </div>
+                    ` : ''}
+                    <div class="market-event-list compact">
+                        ${eventHtml}
+                        ${recentHtml}
+                    </div>
+                </div>`;
+        } catch (e) {
+            contentEl.innerHTML = '<div class="text-muted" style="padding:12px;font-size:0.85rem">Macro events unavailable</div>';
         }
     },
 };

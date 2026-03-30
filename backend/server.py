@@ -18,8 +18,9 @@ from config import (
     SERVER_HOST, SERVER_PORT,
     AUTH_USERNAME, AUTH_PASSWORD, JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_HOURS,
     WATCHLIST, CACHE_TTL_SECONDS, DEFAULT_PERIOD, FINNHUB_API_KEY,
-    REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET,
+    REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, ALPHA_VANTAGE_API_KEY,
 )
+from economic_events import get_upcoming_events, get_events_for_stock
 from database import (
     init_db, get_watchlist, add_to_watchlist, remove_from_watchlist,
     seed_default_watchlist, log_signal, get_signal_history,
@@ -801,6 +802,381 @@ async def api_paper_portfolio_history(
 
 
 # ---------------------------------------------------------------------------
+# Economic Calendar API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/economic-events")
+async def api_economic_events(
+    days: int = Query(30, ge=1, le=90),
+    user: str = Depends(verify_token),
+):
+    """Get upcoming macro economic events (FOMC, CPI, Jobs, GDP)."""
+    return get_upcoming_events(days_ahead=days)
+
+
+@app.get("/api/stock/{symbol}/economic-events")
+async def api_stock_economic_events(
+    symbol: str,
+    days: int = Query(30, ge=1, le=90),
+    user: str = Depends(verify_token),
+):
+    """Get economic events relevant to a specific stock based on its sector."""
+    symbol = symbol.upper().strip()
+    # Try to get sector from yfinance
+    sector = None
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker(symbol)
+        info = ticker.info or {}
+        sector = info.get("sector", None)
+    except Exception:
+        pass
+    return get_events_for_stock(symbol, sector=sector, days_ahead=days)
+
+
+# ---------------------------------------------------------------------------
+# Performance Analytics API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/performance/summary")
+async def api_performance_summary(
+    period: str = Query("all", regex="^(1W|1M|3M|6M|1Y|all)$"),
+    user: str = Depends(verify_token),
+):
+    """Get performance analytics summary — advanced trading metrics."""
+    trades = _get_performance_trades(period)
+
+    if not trades:
+        return {
+            "total_trades": 0,
+            "message": "No closed trades found for this period",
+        }
+
+    closed = [t for t in trades if t.get("pnl_pct") is not None]
+    if not closed:
+        return {
+            "total_trades": len(trades),
+            "closed_trades": 0,
+            "message": "No closed trades with P&L data",
+        }
+
+    wins = [t for t in closed if t["pnl_pct"] > 0]
+    losses = [t for t in closed if t["pnl_pct"] <= 0]
+
+    pnls = [t["pnl_pct"] for t in closed]
+    win_pnls = [t["pnl_pct"] for t in wins]
+    loss_pnls = [abs(t["pnl_pct"]) for t in losses]
+
+    # Win rate
+    win_rate = len(wins) / len(closed) * 100 if closed else 0
+
+    # Average win / loss
+    avg_win = sum(win_pnls) / len(win_pnls) if win_pnls else 0
+    avg_loss = sum(loss_pnls) / len(loss_pnls) if loss_pnls else 0
+
+    # Profit Factor = gross profit / gross loss
+    gross_profit = sum(win_pnls)
+    gross_loss = sum(loss_pnls)
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf') if gross_profit > 0 else 0
+
+    # Expectancy = (win_rate * avg_win) - (loss_rate * avg_loss)
+    loss_rate = len(losses) / len(closed) * 100 if closed else 0
+    expectancy = (win_rate / 100 * avg_win) - (loss_rate / 100 * avg_loss)
+
+    # Max drawdown (sequential)
+    max_dd = _calc_max_drawdown(closed)
+
+    # Best / worst trade
+    best_trade = max(closed, key=lambda t: t["pnl_pct"])
+    worst_trade = min(closed, key=lambda t: t["pnl_pct"])
+
+    # Consecutive wins/losses
+    max_consec_wins, max_consec_losses = _calc_consecutive(closed)
+
+    # Average hold duration
+    avg_duration = _calc_avg_duration(closed)
+
+    # Risk-reward ratio
+    risk_reward = avg_win / avg_loss if avg_loss > 0 else float('inf') if avg_win > 0 else 0
+
+    # Total P&L (compounded)
+    total_pnl = 1.0
+    for p in pnls:
+        total_pnl *= (1 + p / 100)
+    total_pnl = (total_pnl - 1) * 100
+
+    # Sharpe-like ratio (simplified — using daily returns)
+    import statistics
+    if len(pnls) > 1:
+        mean_ret = statistics.mean(pnls)
+        std_ret = statistics.stdev(pnls)
+        sharpe = mean_ret / std_ret if std_ret > 0 else 0
+    else:
+        sharpe = 0
+
+    return {
+        "total_trades": len(trades),
+        "closed_trades": len(closed),
+        "open_trades": len(trades) - len(closed),
+        "win_rate": round(win_rate, 1),
+        "profit_factor": round(profit_factor, 2),
+        "expectancy": round(expectancy, 2),
+        "max_drawdown": round(max_dd, 2),
+        "total_pnl": round(total_pnl, 2),
+        "avg_win": round(avg_win, 2),
+        "avg_loss": round(avg_loss, 2),
+        "best_trade": {"symbol": best_trade.get("symbol", ""), "pnl_pct": round(best_trade["pnl_pct"], 2)},
+        "worst_trade": {"symbol": worst_trade.get("symbol", ""), "pnl_pct": round(worst_trade["pnl_pct"], 2)},
+        "max_consec_wins": max_consec_wins,
+        "max_consec_losses": max_consec_losses,
+        "avg_duration_days": avg_duration,
+        "risk_reward": round(risk_reward, 2),
+        "sharpe_ratio": round(sharpe, 2),
+        "wins": len(wins),
+        "losses": len(losses),
+    }
+
+
+@app.get("/api/performance/equity-curve")
+async def api_performance_equity_curve(
+    period: str = Query("all", regex="^(1W|1M|3M|6M|1Y|all)$"),
+    user: str = Depends(verify_token),
+):
+    """Get equity curve data for performance chart."""
+
+    if is_alpaca_available():
+        # Map our period to Alpaca's period format
+        period_map = {"1W": "1W", "1M": "1M", "3M": "3M", "6M": "6M", "1Y": "1A", "all": "all"}
+        alpaca_period = period_map.get(period, "1M")
+        result = alpaca_get_portfolio_history(period=alpaca_period, timeframe="1D")
+        if result and "timestamps" in result:
+            points = []
+            for i, ts in enumerate(result["timestamps"]):
+                equity = result["equity"][i] if i < len(result["equity"]) else None
+                if equity is not None:
+                    dt = datetime.fromtimestamp(ts)
+                    points.append({
+                        "date": dt.strftime("%Y-%m-%d"),
+                        "equity": round(equity, 2),
+                        "pnl": round(result.get("profit_loss", [0] * len(result["timestamps"]))[i], 2) if i < len(result.get("profit_loss", [])) else 0,
+                    })
+            return {"source": "alpaca", "data": points}
+
+    # Fallback: build from local paper trades
+    trades = get_paper_trades(status="closed")
+    if not trades:
+        return {"source": "local", "data": []}
+
+    # Sort by exit date
+    sorted_trades = sorted(
+        [t for t in trades if t.get("exit_date")],
+        key=lambda t: t["exit_date"]
+    )
+
+    # Filter by period
+    sorted_trades = _filter_trades_by_period(sorted_trades, period, date_key="exit_date")
+
+    # Build equity curve starting at $200 (user's account size)
+    equity = 200.0
+    points = []
+    for t in sorted_trades:
+        pnl_pct = t.get("pnl_pct", 0)
+        equity *= (1 + pnl_pct / 100)
+        points.append({
+            "date": t["exit_date"],
+            "equity": round(equity, 2),
+            "symbol": t.get("symbol", ""),
+            "pnl_pct": round(pnl_pct, 2),
+        })
+
+    return {"source": "local", "data": points}
+
+
+@app.get("/api/performance/by-tag")
+async def api_performance_by_tag(
+    period: str = Query("all", regex="^(1W|1M|3M|6M|1Y|all)$"),
+    user: str = Depends(verify_token),
+):
+    """Get win rate and performance breakdown by watchlist tag."""
+    trades = _get_performance_trades(period)
+    closed = [t for t in trades if t.get("pnl_pct") is not None]
+
+    if not closed:
+        return []
+
+    # Get tag assignments for all symbols in closed trades
+    symbols_in_trades = set(t.get("symbol", "") for t in closed)
+    tag_stats = {}
+
+    for t in closed:
+        sym = t.get("symbol", "")
+        sym_tags = get_symbol_tags(sym)
+
+        if not sym_tags:
+            sym_tags = [{"name": "Untagged", "color": "#666"}]
+
+        for tag in sym_tags:
+            tag_name = tag["name"]
+            if tag_name not in tag_stats:
+                tag_stats[tag_name] = {
+                    "tag": tag_name,
+                    "color": tag.get("color", "#4a9eff"),
+                    "total": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "total_pnl": 0,
+                    "pnls": [],
+                }
+            tag_stats[tag_name]["total"] += 1
+            tag_stats[tag_name]["pnls"].append(t["pnl_pct"])
+            tag_stats[tag_name]["total_pnl"] += t["pnl_pct"]
+            if t["pnl_pct"] > 0:
+                tag_stats[tag_name]["wins"] += 1
+            else:
+                tag_stats[tag_name]["losses"] += 1
+
+    # Calculate final metrics per tag
+    result = []
+    for name, stats in tag_stats.items():
+        win_rate = stats["wins"] / stats["total"] * 100 if stats["total"] > 0 else 0
+        avg_pnl = sum(stats["pnls"]) / len(stats["pnls"]) if stats["pnls"] else 0
+        result.append({
+            "tag": name,
+            "color": stats["color"],
+            "total_trades": stats["total"],
+            "wins": stats["wins"],
+            "losses": stats["losses"],
+            "win_rate": round(win_rate, 1),
+            "avg_pnl": round(avg_pnl, 2),
+            "total_pnl": round(stats["total_pnl"], 2),
+        })
+
+    result.sort(key=lambda x: x["total_trades"], reverse=True)
+    return result
+
+
+# Performance helper functions
+
+def _get_performance_trades(period: str) -> list[dict]:
+    """Get trade data from Alpaca or local, filtered by period."""
+    trades = []
+
+    if is_alpaca_available():
+        # Get closed orders from Alpaca
+        try:
+            orders = alpaca_get_orders(status="closed", limit=200)
+            if orders:
+                for o in orders:
+                    if o.get("filled_avg_price") and o.get("side") == "sell":
+                        trades.append({
+                            "symbol": o.get("symbol", ""),
+                            "entry_price": float(o.get("filled_avg_price", 0)),
+                            "exit_price": float(o.get("filled_avg_price", 0)),
+                            "entry_date": o.get("created_at", "")[:10],
+                            "exit_date": o.get("filled_at", o.get("created_at", ""))[:10],
+                            "pnl_pct": float(o.get("pnl_pct", 0)) if o.get("pnl_pct") else None,
+                            "status": "closed",
+                            "source": "alpaca",
+                        })
+        except Exception as e:
+            print(f"[Performance] Alpaca orders error: {e}")
+
+    # Also include local paper trades
+    local_trades = get_paper_trades(status="closed")
+    for t in local_trades:
+        trades.append({
+            "symbol": t.get("symbol", ""),
+            "entry_price": t.get("entry_price"),
+            "exit_price": t.get("exit_price"),
+            "entry_date": t.get("entry_date", ""),
+            "exit_date": t.get("exit_date", ""),
+            "pnl_pct": t.get("pnl_pct"),
+            "signal_name": t.get("signal_name", ""),
+            "status": "closed",
+            "source": "local",
+        })
+
+    # Filter by period
+    trades = _filter_trades_by_period(trades, period, date_key="exit_date")
+    return trades
+
+
+def _filter_trades_by_period(trades: list, period: str, date_key: str = "exit_date") -> list:
+    """Filter trades by time period."""
+    if period == "all":
+        return trades
+
+    now = datetime.now()
+    period_map = {
+        "1W": timedelta(weeks=1),
+        "1M": timedelta(days=30),
+        "3M": timedelta(days=90),
+        "6M": timedelta(days=180),
+        "1Y": timedelta(days=365),
+    }
+    delta = period_map.get(period, timedelta(days=36500))
+    cutoff = (now - delta).strftime("%Y-%m-%d")
+    return [t for t in trades if (t.get(date_key) or "") >= cutoff]
+
+
+def _calc_max_drawdown(trades: list) -> float:
+    """Calculate maximum drawdown percentage from sequential trades."""
+    if not trades:
+        return 0
+
+    equity = 100.0  # normalized
+    peak = equity
+    max_dd = 0
+
+    for t in sorted(trades, key=lambda x: x.get("exit_date", "")):
+        pnl = t.get("pnl_pct", 0)
+        equity *= (1 + pnl / 100)
+        if equity > peak:
+            peak = equity
+        dd = (peak - equity) / peak * 100
+        if dd > max_dd:
+            max_dd = dd
+
+    return max_dd
+
+
+def _calc_consecutive(trades: list) -> tuple[int, int]:
+    """Calculate max consecutive wins and losses."""
+    sorted_trades = sorted(trades, key=lambda x: x.get("exit_date", ""))
+
+    max_wins = current_wins = 0
+    max_losses = current_losses = 0
+
+    for t in sorted_trades:
+        if t.get("pnl_pct", 0) > 0:
+            current_wins += 1
+            current_losses = 0
+            max_wins = max(max_wins, current_wins)
+        else:
+            current_losses += 1
+            current_wins = 0
+            max_losses = max(max_losses, current_losses)
+
+    return max_wins, max_losses
+
+
+def _calc_avg_duration(trades: list) -> float:
+    """Calculate average trade duration in days."""
+    durations = []
+    for t in trades:
+        entry = t.get("entry_date", "")
+        exit_d = t.get("exit_date", "")
+        if entry and exit_d:
+            try:
+                d1 = datetime.strptime(entry[:10], "%Y-%m-%d")
+                d2 = datetime.strptime(exit_d[:10], "%Y-%m-%d")
+                durations.append((d2 - d1).days)
+            except ValueError:
+                pass
+    return round(sum(durations) / len(durations), 1) if durations else 0
+
+
+# ---------------------------------------------------------------------------
 # Config API
 # ---------------------------------------------------------------------------
 
@@ -813,6 +1189,7 @@ async def api_get_config(user: str = Depends(verify_token)):
         "cache_ttl_seconds": CACHE_TTL_SECONDS,
         "default_period": DEFAULT_PERIOD,
         "finnhub_available": bool(FINNHUB_API_KEY),
+        "alpha_vantage_available": bool(ALPHA_VANTAGE_API_KEY),
     }
 
 

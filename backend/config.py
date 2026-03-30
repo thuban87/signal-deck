@@ -82,6 +82,12 @@ ALPACA_BASE_URL = os.environ.get("ALPACA_BASE_URL", "https://paper-api.alpaca.ma
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 
 # ---------------------------------------------------------------------------
+# Alpha Vantage API (economic indicators, supplementary data)
+# Sign up at https://www.alphavantage.co/support/#api-key (free tier)
+# ---------------------------------------------------------------------------
+ALPHA_VANTAGE_API_KEY = os.environ.get("ALPHA_VANTAGE_API_KEY", "")
+
+# ---------------------------------------------------------------------------
 # Reddit API (optional — social momentum scanning via PRAW)
 # Sign up at https://www.reddit.com/prefs/apps/ (script type)
 # ---------------------------------------------------------------------------

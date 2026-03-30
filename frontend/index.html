@@ -25,7 +25,7 @@
     <script src="https://unpkg.com/easymde@2.18.0/dist/easymde.min.js"></script>
 
     <!-- App styles -->
-    <link rel="stylesheet" href="/static/css/styles.css?v=3">
+    <link rel="stylesheet" href="/static/css/styles.css?v=5">
 </head>
 <body>
     <!-- Login screen -->
@@ -90,6 +90,22 @@
                     </svg>
                     <span>Dashboard</span>
                 </a>
+                <a href="#/discover" class="nav-item" data-page="discover" id="nav-discover">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                    </svg>
+                    <span>Discover</span>
+                </a>
+                <a href="#/investigate" class="nav-item" data-page="investigate" id="nav-investigate">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <line x1="11" y1="8" x2="11" y2="14"></line>
+                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                    <span>Investigator</span>
+                </a>
                 <a href="#/signals" class="nav-item" data-page="signals" id="nav-signals">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
@@ -113,21 +129,13 @@
                     </svg>
                     <span>Paper Trading</span>
                 </a>
-                <a href="#/investigate" class="nav-item" data-page="investigate" id="nav-investigate">
+                <a href="#/performance" class="nav-item" data-page="performance" id="nav-performance">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        <line x1="11" y1="8" x2="11" y2="14"></line>
-                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
                     </svg>
-                    <span>Investigator</span>
-                </a>
-                <a href="#/discover" class="nav-item" data-page="discover" id="nav-discover">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-                    </svg>
-                    <span>Discover</span>
+                    <span>Performance</span>
                 </a>
 
                 <div class="nav-divider"></div>
@@ -204,14 +212,15 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/static/js/app.js?v=3"></script>
-    <script src="/static/js/dashboard.js?v=3"></script>
-    <script src="/static/js/signals.js?v=3"></script>
-    <script src="/static/js/stock.js?v=3"></script>
-    <script src="/static/js/backtest.js?v=3"></script>
-    <script src="/static/js/paper.js?v=3"></script>
-    <script src="/static/js/investigator.js?v=3"></script>
-    <script src="/static/js/discover.js?v=3"></script>
-    <script src="/static/js/settings.js?v=3"></script>
+    <script src="/static/js/app.js?v=5"></script>
+    <script src="/static/js/dashboard.js?v=5"></script>
+    <script src="/static/js/signals.js?v=5"></script>
+    <script src="/static/js/stock.js?v=5"></script>
+    <script src="/static/js/backtest.js?v=5"></script>
+    <script src="/static/js/paper.js?v=5"></script>
+    <script src="/static/js/investigator.js?v=5"></script>
+    <script src="/static/js/discover.js?v=5"></script>
+    <script src="/static/js/settings.js?v=5"></script>
+    <script src="/static/js/performance.js?v=5"></script>
 </body>
 </html>
