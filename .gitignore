@@ -51,3 +51,6 @@ env/
 # Batch scripts
 start-server.bat
 stop-server.bat
+
+# Server scripts
+scripts/
