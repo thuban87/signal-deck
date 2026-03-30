@@ -6,9 +6,17 @@
 const StockDetail = {
     chart: null,
     symbol: null,
+    calcPickMode: null,   // null, 'entry', or 'exit'
+    calcChart: null,
+    notesEditor: null,
 
     async render(container, symbol) {
         this.symbol = symbol;
+        this.calcPickMode = null;
+
+        const today = new Date().toISOString().split('T')[0];
+        const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
+
         container.innerHTML = `
             <div class="stock-detail-header">
                 <a href="#/dashboard" class="btn btn-ghost btn-sm" style="margin-right:8px">
@@ -41,11 +49,136 @@ const StockDetail = {
             <div class="stock-detail-grid">
                 <div>
                     <div class="chart-container">
+                        <div id="chart-pick-banner" class="chart-pick-banner hidden"></div>
                         <div class="chart-area" id="main-chart"></div>
                     </div>
                     <div id="action-card-area" class="mt-4"></div>
+                    <div id="earnings-warning-area"></div>
                     <div id="llm-result-area" class="mt-4"></div>
                     <div id="signals-list-area" class="mt-4"></div>
+
+                    <!-- Fundamentals Section -->
+                    <div class="card mt-4" id="fundamentals-section" style="display:none">
+                        <div class="card-header">
+                            <h3>Fundamentals</h3>
+                            <span id="fund-sector" class="text-muted" style="font-size:0.75rem"></span>
+                        </div>
+                        <div id="fundamentals-data" class="fundamentals-grid"></div>
+                    </div>
+
+                    <!-- Position Sizing -->
+                    <div class="card mt-4" id="position-size-section">
+                        <div class="card-header">
+                            <h3>Position Sizing</h3>
+                            <span class="text-muted" style="font-size:0.75rem">ATR-based risk management</span>
+                        </div>
+                        <div class="calculator-form" style="margin-bottom:12px">
+                            <div class="form-group">
+                                <label>Account Size ($)</label>
+                                <input type="number" id="ps-account-size" value="200" min="1" step="any">
+                            </div>
+                            <div class="form-group">
+                                <label>Risk %</label>
+                                <input type="number" id="ps-risk-pct" value="2" min="0.1" max="100" step="0.1">
+                            </div>
+                            <div class="form-group" style="flex:0">
+                                <label style="visibility:hidden">_</label>
+                                <button class="btn btn-primary" id="ps-calculate">Calculate</button>
+                            </div>
+                        </div>
+                        <div id="ps-results"></div>
+                    </div>
+
+                    <!-- Mini News / Research -->
+                    <div class="card mt-4" id="mini-news-section">
+                        <div class="card-header">
+                            <h3>Recent News</h3>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <span id="mini-sentiment-badge"></span>
+                                <a href="#/investigate/${symbol}" class="btn btn-outline btn-sm">Full Research</a>
+                            </div>
+                        </div>
+                        <div id="mini-news-content">
+                            <button class="btn btn-ghost btn-sm" id="load-mini-news" style="width:100%;padding:16px">Load News &amp; Sentiment</button>
+                        </div>
+                    </div>
+
+                    <!-- Notes Section -->
+                    <div class="card mt-4" id="notes-section">
+                        <div class="card-header">
+                            <h3>Notes</h3>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <span id="notes-status" class="text-muted" style="font-size:0.75rem"></span>
+                                <button class="btn btn-primary btn-sm" id="save-notes">Save</button>
+                            </div>
+                        </div>
+                        <div id="notes-editor-area">
+                            <textarea id="notes-textarea"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="card mt-6" id="calc-section">
+                        <div class="card-header">
+                            <h3>Trade Calculator</h3>
+                            <span class="text-muted" style="font-size:0.75rem">What-if scenario</span>
+                        </div>
+                        <div class="calculator-form" style="margin-bottom:12px">
+                            <div class="form-group">
+                                <label>Buy Date</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="date" id="calc-entry-date" value="${yearAgo}" max="${today}" style="flex:1">
+                                    <button class="btn btn-ghost btn-sm" id="calc-pick-entry" title="Pick from chart">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="22" y1="12" x2="18" y2="12"></line>
+                                            <line x1="6" y1="12" x2="2" y2="12"></line>
+                                            <line x1="12" y1="6" x2="12" y2="2"></line>
+                                            <line x1="12" y1="22" x2="12" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Sell Date</label>
+                                <div style="display:flex;gap:6px">
+                                    <input type="date" id="calc-exit-date" value="${today}" max="${today}" style="flex:1">
+                                    <button class="btn btn-ghost btn-sm" id="calc-pick-exit" title="Pick from chart">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="22" y1="12" x2="18" y2="12"></line>
+                                            <line x1="6" y1="12" x2="2" y2="12"></line>
+                                            <line x1="12" y1="6" x2="12" y2="2"></line>
+                                            <line x1="12" y1="22" x2="12" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount</label>
+                                <input type="number" id="calc-amount" value="1000" min="0" step="any">
+                            </div>
+                            <div class="form-group" style="min-width:100px">
+                                <label>Type</label>
+                                <select id="calc-amount-type">
+                                    <option value="dollars">Dollars</option>
+                                    <option value="shares">Shares</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:0">
+                                <label style="visibility:hidden">_</label>
+                                <button class="btn btn-primary" id="calc-run">Calculate</button>
+                            </div>
+                        </div>
+                        <div id="calc-results"></div>
+                    </div>
+
+                    <div class="card mt-4" id="simulations-section">
+                        <div class="card-header">
+                            <h3>Saved Simulations</h3>
+                            <button class="btn btn-ghost btn-sm" id="clear-sims" title="Clear all">Clear</button>
+                        </div>
+                        <div id="simulations-list"></div>
+                    </div>
                 </div>
                 <div class="indicators-sidebar" id="indicators-sidebar">
                     <div class="loading-spinner"><div class="spinner"></div></div>
@@ -58,13 +191,34 @@ const StockDetail = {
         });
 
         document.getElementById('llm-btn').addEventListener('click', () => this.runLLM());
+        document.getElementById('calc-run').addEventListener('click', () => this.runCalculator());
+        document.getElementById('calc-pick-entry').addEventListener('click', () => this.startPick('entry'));
+        document.getElementById('calc-pick-exit').addEventListener('click', () => this.startPick('exit'));
+        document.getElementById('clear-sims').addEventListener('click', () => {
+            this.clearSimulations();
+        });
 
+        // Position sizing
+        document.getElementById('ps-calculate').addEventListener('click', () => this.calculatePositionSize());
+
+        // Notes
+        document.getElementById('save-notes').addEventListener('click', () => this.saveNotes());
+
+        // Mini news
+        document.getElementById('load-mini-news').addEventListener('click', () => this.loadMiniNews());
+
+        this.renderSimulations();
         await this.loadData('6mo');
+        this.initNotesEditor();
+        this.loadNotes();
+        this.loadFundamentals();
+        this.loadEarnings();
     },
 
     async loadData(period) {
         try {
             const data = await App.get(`/api/stock/${this.symbol}?period=${period}`);
+            this.currentData = data;
             this.renderChart(data);
             this.renderIndicators(data.summary);
             this.renderActionCard(data.summary);
@@ -72,6 +226,37 @@ const StockDetail = {
         } catch (err) {
             App.toast(`Failed to load ${this.symbol}: ${err.message}`, 'error');
         }
+    },
+
+    // --- Chart click date picking ---
+    startPick(which) {
+        this.calcPickMode = which;
+        const banner = document.getElementById('chart-pick-banner');
+        if (banner) {
+            banner.textContent = `Click on the chart to set ${which === 'entry' ? 'BUY' : 'SELL'} date`;
+            banner.className = `chart-pick-banner active ${which === 'entry' ? 'pick-entry' : 'pick-exit'}`;
+        }
+        // Highlight the active button
+        document.getElementById('calc-pick-entry').classList.toggle('btn-active', which === 'entry');
+        document.getElementById('calc-pick-exit').classList.toggle('btn-active', which === 'exit');
+    },
+
+    handleChartClick(param) {
+        if (!this.calcPickMode || !param.time) return;
+        const dateStr = typeof param.time === 'string' ? param.time :
+            `${param.time.year}-${String(param.time.month).padStart(2,'0')}-${String(param.time.day).padStart(2,'0')}`;
+
+        if (this.calcPickMode === 'entry') {
+            document.getElementById('calc-entry-date').value = dateStr;
+        } else {
+            document.getElementById('calc-exit-date').value = dateStr;
+        }
+
+        this.calcPickMode = null;
+        const banner = document.getElementById('chart-pick-banner');
+        if (banner) banner.className = 'chart-pick-banner hidden';
+        document.getElementById('calc-pick-entry').classList.remove('btn-active');
+        document.getElementById('calc-pick-exit').classList.remove('btn-active');
     },
 
     renderChart(data) {
@@ -106,6 +291,9 @@ const StockDetail = {
                 horzLine: { color: 'rgba(136, 153, 176, 0.3)', width: 1, style: 2 },
             },
         });
+
+        // Subscribe to clicks for date picking
+        this.chart.subscribeClick((param) => this.handleChartClick(param));
 
         // Candlestick series
         const candleSeries = this.chart.addCandlestickSeries({
@@ -357,6 +545,249 @@ const StockDetail = {
         `;
     },
 
+    // --- Trade Calculator ---
+    async runCalculator() {
+        const entryDate = document.getElementById('calc-entry-date').value;
+        const exitDate = document.getElementById('calc-exit-date').value;
+        const amount = parseFloat(document.getElementById('calc-amount').value);
+        const amountType = document.getElementById('calc-amount-type').value;
+
+        if (!entryDate || !exitDate) { App.toast('Select both dates', 'error'); return; }
+        if (entryDate >= exitDate) { App.toast('Buy date must be before sell date', 'error'); return; }
+        if (!amount || amount <= 0) { App.toast('Enter a valid amount', 'error'); return; }
+
+        const resultsEl = document.getElementById('calc-results');
+        resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>Calculating...</div>';
+
+        try {
+            const data = await App.post('/api/calculator/trade', {
+                symbol: this.symbol,
+                entry_date: entryDate,
+                exit_date: exitDate,
+                amount,
+                amount_type: amountType,
+            });
+
+            this.renderCalcResults(data);
+            this.saveSimulation(data);
+        } catch (err) {
+            resultsEl.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${App.escapeHtml(err.message)}</p></div>`;
+        }
+    },
+
+    renderCalcResults(data) {
+        const resultsEl = document.getElementById('calc-results');
+        if (!resultsEl) return;
+
+        const isProfit = data.pnl_dollars >= 0;
+        const pnlClass = isProfit ? 'positive' : 'negative';
+        const pnlSign = isProfit ? '+' : '';
+
+        let dateNote = '';
+        if (data.actual_entry_date !== data.entry_date || data.actual_exit_date !== data.exit_date) {
+            const parts = [];
+            if (data.actual_entry_date !== data.entry_date)
+                parts.push(`Buy adjusted to ${data.actual_entry_date}`);
+            if (data.actual_exit_date !== data.exit_date)
+                parts.push(`Sell adjusted to ${data.actual_exit_date}`);
+            dateNote = `<div class="date-adjusted-note">${parts.join(' | ')}</div>`;
+        }
+
+        resultsEl.innerHTML = `
+            ${dateNote}
+            <div class="calculator-results">
+                <div class="stat-card">
+                    <div class="stat-card-label">Entry Price</div>
+                    <div class="stat-card-value">${App.formatPrice(data.entry_price)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Exit Price</div>
+                    <div class="stat-card-value">${App.formatPrice(data.exit_price)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Shares</div>
+                    <div class="stat-card-value">${data.shares.toLocaleString(undefined, {maximumFractionDigits: 4})}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Profit / Loss</div>
+                    <div class="stat-card-value ${pnlClass}">${pnlSign}${App.formatPrice(Math.abs(data.pnl_dollars))}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Return</div>
+                    <div class="stat-card-value ${pnlClass}">${pnlSign}${data.pnl_pct.toFixed(2)}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Days Held</div>
+                    <div class="stat-card-value">${data.days_held}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Annualized</div>
+                    <div class="stat-card-value ${data.annualized_return >= 0 ? 'positive' : 'negative'}">${data.annualized_return >= 0 ? '+' : ''}${data.annualized_return.toFixed(2)}%</div>
+                </div>
+            </div>
+            <div class="calculator-chart-container" style="background:transparent;border:none;padding:0">
+                <div class="calculator-chart-area" id="calc-mini-chart"></div>
+            </div>
+        `;
+
+        this.renderCalcChart(data);
+    },
+
+    renderCalcChart(data) {
+        const chartEl = document.getElementById('calc-mini-chart');
+        if (!chartEl || !data.ohlcv || data.ohlcv.length === 0) return;
+
+        if (this.calcChart) {
+            try { this.calcChart.remove(); } catch(e) {}
+            this.calcChart = null;
+        }
+
+        this.calcChart = LightweightCharts.createChart(chartEl, {
+            width: chartEl.clientWidth,
+            height: 250,
+            layout: {
+                background: { color: 'transparent' },
+                textColor: '#8899b0',
+                fontSize: 11,
+            },
+            grid: {
+                vertLines: { color: 'rgba(136,153,176,0.06)' },
+                horzLines: { color: 'rgba(136,153,176,0.06)' },
+            },
+            timeScale: { borderColor: 'rgba(136,153,176,0.1)', timeVisible: false },
+            rightPriceScale: { borderColor: 'rgba(136,153,176,0.1)' },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: { color: 'rgba(136,153,176,0.3)', width: 1, style: 3 },
+                horzLine: { color: 'rgba(136,153,176,0.3)', width: 1, style: 3 },
+            },
+        });
+
+        const candleSeries = this.calcChart.addCandlestickSeries({
+            upColor: '#00d4aa',
+            downColor: '#ff4757',
+            borderUpColor: '#00d4aa',
+            borderDownColor: '#ff4757',
+            wickUpColor: '#00d4aa',
+            wickDownColor: '#ff4757',
+        });
+
+        candleSeries.setData(data.ohlcv);
+
+        const isProfit = data.pnl_pct >= 0;
+        candleSeries.setMarkers([
+            {
+                time: data.actual_entry_date,
+                position: 'belowBar',
+                color: '#4a9eff',
+                shape: 'arrowUp',
+                text: `BUY @ ${App.formatPrice(data.entry_price)}`,
+            },
+            {
+                time: data.actual_exit_date,
+                position: 'aboveBar',
+                color: isProfit ? '#00d4aa' : '#ff4757',
+                shape: 'arrowDown',
+                text: `SELL @ ${App.formatPrice(data.exit_price)}`,
+            },
+        ]);
+
+        this.calcChart.timeScale().fitContent();
+
+        const observer = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                if (this.calcChart) {
+                    this.calcChart.applyOptions({ width: entry.contentRect.width });
+                }
+            }
+        });
+        observer.observe(chartEl);
+    },
+
+    // --- Simulations persistence (localStorage) ---
+    _getSimKey() {
+        return `sd_sims_${this.symbol}`;
+    },
+
+    getSimulations() {
+        try {
+            return JSON.parse(localStorage.getItem(this._getSimKey()) || '[]');
+        } catch { return []; }
+    },
+
+    saveSimulation(data) {
+        const sims = this.getSimulations();
+        sims.unshift({
+            entry_date: data.actual_entry_date,
+            exit_date: data.actual_exit_date,
+            entry_price: data.entry_price,
+            exit_price: data.exit_price,
+            shares: data.shares,
+            pnl_dollars: data.pnl_dollars,
+            pnl_pct: data.pnl_pct,
+            days_held: data.days_held,
+            annualized_return: data.annualized_return,
+            entry_value: data.entry_value,
+            ran_at: new Date().toISOString(),
+        });
+        // Keep last 20
+        if (sims.length > 20) sims.length = 20;
+        localStorage.setItem(this._getSimKey(), JSON.stringify(sims));
+        this.renderSimulations();
+    },
+
+    clearSimulations() {
+        localStorage.removeItem(this._getSimKey());
+        this.renderSimulations();
+    },
+
+    renderSimulations() {
+        const listEl = document.getElementById('simulations-list');
+        if (!listEl) return;
+
+        const sims = this.getSimulations();
+        if (sims.length === 0) {
+            listEl.innerHTML = '<div class="text-muted" style="font-size:0.8rem;padding:8px 0">No saved simulations. Use the calculator above to run a what-if scenario.</div>';
+            return;
+        }
+
+        listEl.innerHTML = `
+            <table class="signals-table" style="font-size:0.8rem">
+                <thead>
+                    <tr>
+                        <th>Buy</th>
+                        <th>Sell</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>Invested</th>
+                        <th>P&L</th>
+                        <th>Return</th>
+                        <th>Days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sims.map(s => {
+                        const isProfit = s.pnl_dollars >= 0;
+                        const cls = isProfit ? 'text-green' : 'text-red';
+                        const sign = isProfit ? '+' : '';
+                        return `
+                            <tr>
+                                <td class="text-mono">${s.entry_date}</td>
+                                <td class="text-mono">${s.exit_date}</td>
+                                <td class="text-mono">${App.formatPrice(s.entry_price)}</td>
+                                <td class="text-mono">${App.formatPrice(s.exit_price)}</td>
+                                <td class="text-mono">${App.formatPrice(s.entry_value)}</td>
+                                <td class="text-mono ${cls}">${sign}${App.formatPrice(Math.abs(s.pnl_dollars))}</td>
+                                <td class="text-mono ${cls}">${sign}${s.pnl_pct.toFixed(2)}%</td>
+                                <td class="text-mono">${s.days_held}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    },
+
     async runLLM() {
         const area = document.getElementById('llm-result-area');
         const btn = document.getElementById('llm-btn');
@@ -427,6 +858,245 @@ const StockDetail = {
                 </svg>
                 LLM Analysis
             `;
+        }
+    },
+
+    // --- Notes ---
+    initNotesEditor() {
+        const textarea = document.getElementById('notes-textarea');
+        if (!textarea) return;
+        try {
+            this.notesEditor = new EasyMDE({
+                element: textarea,
+                spellChecker: false,
+                autosave: { enabled: false },
+                status: false,
+                minHeight: '200px',
+                placeholder: 'Write your analysis, reasons for buying/selling, link to SEC filings, format pros/cons...',
+                toolbar: ['bold', 'italic', 'heading', '|', 'unordered-list', 'ordered-list', '|',
+                           'link', 'quote', 'code', '|', 'preview', 'side-by-side', '|', 'guide'],
+            });
+        } catch (e) {
+            console.warn('EasyMDE not available, using plain textarea');
+            textarea.style.width = '100%';
+            textarea.style.minHeight = '200px';
+            textarea.style.background = 'var(--bg-input)';
+            textarea.style.color = 'var(--text-primary)';
+            textarea.style.border = '1px solid var(--border)';
+            textarea.style.borderRadius = 'var(--radius-sm)';
+            textarea.style.padding = '12px';
+            textarea.style.fontFamily = 'var(--font-mono)';
+            textarea.placeholder = 'Write your analysis notes here...';
+        }
+    },
+
+    async loadNotes() {
+        try {
+            const data = await App.get(`/api/stock/${this.symbol}/notes`);
+            if (data && data.content) {
+                if (this.notesEditor && this.notesEditor.value) {
+                    this.notesEditor.value(data.content);
+                } else {
+                    const textarea = document.getElementById('notes-textarea');
+                    if (textarea) textarea.value = data.content;
+                }
+                if (data.updated_at) {
+                    const statusEl = document.getElementById('notes-status');
+                    if (statusEl) statusEl.textContent = `Last saved: ${new Date(data.updated_at).toLocaleString()}`;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load notes:', e);
+        }
+    },
+
+    async saveNotes() {
+        const content = this.notesEditor ? this.notesEditor.value() :
+            document.getElementById('notes-textarea')?.value || '';
+        try {
+            const result = await App.put(`/api/stock/${this.symbol}/notes`, { content });
+            const statusEl = document.getElementById('notes-status');
+            if (statusEl) statusEl.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+            App.toast('Notes saved', 'success');
+        } catch (e) {
+            App.toast('Failed to save notes: ' + e.message, 'error');
+        }
+    },
+
+    // --- Fundamentals ---
+    async loadFundamentals() {
+        try {
+            const data = await App.get(`/api/stock/${this.symbol}/fundamentals`);
+            if (!data) return;
+
+            const section = document.getElementById('fundamentals-section');
+            const sectorEl = document.getElementById('fund-sector');
+            const gridEl = document.getElementById('fundamentals-data');
+            section.style.display = '';
+            sectorEl.textContent = `${data.sector || ''} — ${data.industry || ''}`;
+
+            const fmt = (v, prefix = '', suffix = '') => v != null ? `${prefix}${typeof v === 'number' ? v.toLocaleString(undefined, {maximumFractionDigits: 2}) : v}${suffix}` : '—';
+            const fmtPct = (v) => v != null ? `${(v * 100).toFixed(2)}%` : '—';
+            const fmtMoney = (v) => {
+                if (v == null) return '—';
+                if (Math.abs(v) >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+                if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+                if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
+                return `$${v.toLocaleString()}`;
+            };
+
+            gridEl.innerHTML = `
+                <div class="fund-item"><span class="fund-label">P/E Ratio</span><span class="fund-value">${fmt(data.pe_ratio)}</span></div>
+                <div class="fund-item"><span class="fund-label">EPS</span><span class="fund-value">${fmt(data.eps, '$')}</span></div>
+                <div class="fund-item"><span class="fund-label">PEG Ratio</span><span class="fund-value">${fmt(data.peg_ratio)}</span></div>
+                <div class="fund-item"><span class="fund-label">Debt/Equity</span><span class="fund-value">${fmt(data.debt_to_equity)}</span></div>
+                <div class="fund-item"><span class="fund-label">Free Cash Flow</span><span class="fund-value">${fmtMoney(data.free_cash_flow)}</span></div>
+                <div class="fund-item"><span class="fund-label">Div Yield</span><span class="fund-value">${fmtPct(data.dividend_yield)}</span></div>
+            `;
+        } catch (e) {
+            console.warn('Fundamentals load failed:', e);
+        }
+    },
+
+    // --- Earnings ---
+    async loadEarnings() {
+        try {
+            const data = await App.get(`/api/stock/${this.symbol}/earnings`);
+            const area = document.getElementById('earnings-warning-area');
+            if (!data || !data.upcoming) { area.innerHTML = ''; return; }
+
+            const e = data.upcoming;
+            const isWarning = data.warning;
+            const borderColor = isWarning ? 'var(--red)' : 'var(--gold)';
+            const icon = isWarning ? '⚠️' : '📅';
+
+            area.innerHTML = `
+                <div class="card mt-4" style="border-color:${borderColor};border-width:2px">
+                    <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
+                        <span style="font-size:1.5rem">${icon}</span>
+                        <div>
+                            <div style="font-weight:600;color:${isWarning ? 'var(--red)' : 'var(--gold)'}">
+                                ${isWarning ? 'EARNINGS WARNING — Consider waiting' : 'Upcoming Earnings'}
+                            </div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary)">
+                                ${e.date} (${e.days_until} days away)${e.hour ? ` — ${e.hour === 'bmo' ? 'Before Market Open' : e.hour === 'amc' ? 'After Market Close' : e.hour}` : ''}
+                                ${e.estimate_eps != null ? ` | EPS Est: $${e.estimate_eps}` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            console.warn('Earnings load failed:', e);
+        }
+    },
+
+    // --- Position Sizing ---
+    async calculatePositionSize() {
+        const accountSize = parseFloat(document.getElementById('ps-account-size').value);
+        const riskPct = parseFloat(document.getElementById('ps-risk-pct').value);
+        const resultsEl = document.getElementById('ps-results');
+
+        if (!accountSize || accountSize <= 0) { App.toast('Enter a valid account size', 'error'); return; }
+        if (!riskPct || riskPct <= 0) { App.toast('Enter a valid risk %', 'error'); return; }
+
+        resultsEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+        try {
+            const data = await App.post('/api/position-size', {
+                symbol: this.symbol,
+                account_size: accountSize,
+                risk_pct: riskPct,
+            });
+
+            resultsEl.innerHTML = `
+                <div class="calculator-results">
+                    <div class="stat-card">
+                        <div class="stat-card-label">Shares to Buy</div>
+                        <div class="stat-card-value" style="color:var(--green)">${data.shares}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">Entry Price</div>
+                        <div class="stat-card-value">${App.formatPrice(data.entry_price)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">Stop Loss</div>
+                        <div class="stat-card-value" style="color:var(--red)">${App.formatPrice(data.stop_loss_price)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">Take Profit</div>
+                        <div class="stat-card-value" style="color:var(--green)">${App.formatPrice(data.take_profit_price)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">Risk ($)</div>
+                        <div class="stat-card-value">${App.formatPrice(data.risk_dollars)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">Position Value</div>
+                        <div class="stat-card-value">${App.formatPrice(data.position_value)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">% of Account</div>
+                        <div class="stat-card-value">${data.position_pct}%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">ATR</div>
+                        <div class="stat-card-value">${App.formatPrice(data.atr)}</div>
+                    </div>
+                </div>
+            `;
+        } catch (err) {
+            resultsEl.innerHTML = `<div class="text-red" style="padding:8px">${App.escapeHtml(err.message)}</div>`;
+        }
+    },
+
+    // --- Mini News ---
+    async loadMiniNews() {
+        const contentEl = document.getElementById('mini-news-content');
+        contentEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div>Loading news...</div>';
+
+        try {
+            const data = await App.get(`/api/stock/${this.symbol}/news?days=7`);
+            const articles = data.articles || [];
+            const sentiment = data.sentiment;
+
+            // Show sentiment badge
+            const badgeEl = document.getElementById('mini-sentiment-badge');
+            if (sentiment && badgeEl) {
+                const color = sentiment.label === 'bullish' ? 'var(--green)' : sentiment.label === 'bearish' ? 'var(--red)' : 'var(--text-muted)';
+                badgeEl.innerHTML = `<span style="color:${color};font-weight:600;font-size:0.8rem;text-transform:uppercase">${sentiment.label} (${sentiment.score > 0 ? '+' : ''}${sentiment.score.toFixed(2)})</span>`;
+            }
+
+            if (articles.length === 0) {
+                contentEl.innerHTML = '<p class="text-muted" style="padding:12px">No recent news</p>';
+                return;
+            }
+
+            // Show top 5 articles
+            contentEl.innerHTML = `
+                <div class="news-feed" style="max-height:400px;overflow-y:auto">
+                    ${articles.slice(0, 5).map(a => {
+                        const date = a.datetime ? new Date(a.datetime * 1000) : null;
+                        const timeStr = date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                        const sentColor = a.sentiment ? (a.sentiment.label === 'bullish' ? 'var(--green)' : a.sentiment.label === 'bearish' ? 'var(--red)' : 'var(--text-muted)') : '';
+                        return `
+                            <div class="news-article">
+                                <div class="news-article-header">
+                                    <a href="${App.escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer" class="news-headline">${App.escapeHtml(a.headline)}</a>
+                                    ${a.sentiment ? `<span class="sentiment-badge ${a.sentiment.label}" style="font-size:0.65rem">${a.sentiment.label}</span>` : ''}
+                                </div>
+                                <div class="news-meta">
+                                    <span>${App.escapeHtml(a.source)}</span>
+                                    <span>${timeStr}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ${articles.length > 5 ? `<a href="#/investigate/${this.symbol}" class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px">See all ${articles.length} articles</a>` : ''}
+            `;
+        } catch (e) {
+            contentEl.innerHTML = `<p class="text-muted" style="padding:12px">Failed to load news: ${App.escapeHtml(e.message)}</p>`;
         }
     },
 };

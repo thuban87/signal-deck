@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Signal Deck — Trading Dashboard</title>
     <meta name="description" content="Personal trading signal dashboard with real-time market data, technical analysis, and paper trading.">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,6 +14,15 @@
 
     <!-- TradingView Lightweight Charts -->
     <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
+    <!-- GridStack — draggable/resizable dashboard widgets -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-extra.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js"></script>
+
+    <!-- EasyMDE Markdown Editor -->
+    <link rel="stylesheet" href="https://unpkg.com/easymde@2.18.0/dist/easymde.min.css">
+    <script src="https://unpkg.com/easymde@2.18.0/dist/easymde.min.js"></script>
 
     <!-- App styles -->
     <link rel="stylesheet" href="/static/css/styles.css">
@@ -93,6 +103,32 @@
                     </svg>
                     <span>Paper Trading</span>
                 </a>
+                <a href="#/investigate" class="nav-item" data-page="investigate" id="nav-investigate">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <line x1="11" y1="8" x2="11" y2="14"></line>
+                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                    <span>Investigator</span>
+                </a>
+                <a href="#/discover" class="nav-item" data-page="discover" id="nav-discover">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                    </svg>
+                    <span>Discover</span>
+                </a>
+
+                <div class="nav-divider"></div>
+
+                <a href="#/settings" class="nav-item" data-page="settings" id="nav-settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    <span>Settings</span>
+                </a>
             </div>
 
             <div class="sidebar-footer">
@@ -114,6 +150,27 @@
         <main id="main-content" class="main-content">
             <!-- Pages are rendered here by the router -->
         </main>
+    </div>
+
+    <!-- Quick-Logger FAB ("Overheard in the Uber") -->
+    <div id="quick-log-fab" class="quick-log-fab hidden" title="Quick-log a ticker idea">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+    </div>
+    <div id="quick-log-panel" class="quick-log-panel hidden">
+        <div class="quick-log-header">
+            <span>🚗 Quick Log</span>
+            <button class="btn btn-ghost btn-sm" id="quick-log-close">&times;</button>
+        </div>
+        <div class="quick-log-body">
+            <input type="text" id="quick-log-input" class="quick-log-input"
+                   placeholder='Ticker or company name… e.g. "NVDA" or "Palantir"'
+                   autocomplete="off" autofocus>
+            <button class="btn btn-primary btn-full" id="quick-log-submit">Log It</button>
+            <p id="quick-log-feedback" class="quick-log-feedback hidden"></p>
+        </div>
     </div>
 
     <!-- Toast container -->
@@ -143,5 +200,8 @@
     <script src="/static/js/stock.js"></script>
     <script src="/static/js/backtest.js"></script>
     <script src="/static/js/paper.js"></script>
+    <script src="/static/js/investigator.js"></script>
+    <script src="/static/js/discover.js"></script>
+    <script src="/static/js/settings.js"></script>
 </body>
 </html>

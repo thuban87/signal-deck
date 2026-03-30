@@ -34,6 +34,12 @@ const Signals = {
                 </select>
                 <input type="text" id="signal-filter-symbol" placeholder="Filter symbol..." style="width:120px">
                 <input type="text" id="signal-filter-signal" placeholder="Filter signal..." style="width:160px">
+                <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                    <label style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap">Account $</label>
+                    <input type="number" id="signal-account-size" value="200" min="1" step="any" style="width:80px">
+                    <label style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap">Risk %</label>
+                    <input type="number" id="signal-risk-pct" value="2" min="0.1" max="100" step="0.1" style="width:60px">
+                </div>
                 <button class="btn btn-ghost btn-sm" id="signal-refresh-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
                         <polyline points="23 4 23 10 17 10"></polyline>
@@ -72,6 +78,9 @@ const Signals = {
         });
 
         document.getElementById('signal-refresh-btn').addEventListener('click', () => this.loadData());
+
+        document.getElementById('signal-account-size').addEventListener('change', () => this.renderTable());
+        document.getElementById('signal-risk-pct').addEventListener('change', () => this.renderTable());
 
         await this.loadData();
     },
@@ -152,6 +161,8 @@ const Signals = {
                         <th class="sortable ${activeClass('direction')}" data-sort="direction">Direction ${arrow('direction')}</th>
                         <th class="sortable ${activeClass('signal')}" data-sort="signal">Signal ${arrow('signal')}</th>
                         <th class="sortable ${activeClass('price')}" data-sort="price">Price ${arrow('price')}</th>
+                        <th>Shares</th>
+                        <th>Stop Loss</th>
                         <th class="sortable ${activeClass('days_ago')}" data-sort="days_ago">Age ${arrow('days_ago')}</th>
                     </tr>
                 </thead>
@@ -163,6 +174,16 @@ const Signals = {
                         const dirClass = isBullish ? 'buy' : 'sell';
                         const ageText = s.days_ago === 0 ? 'Today' : s.days_ago === 1 ? '1 day' : `${s.days_ago} days`;
 
+                        // Position sizing calculation
+                        const accountSize = parseFloat(document.getElementById('signal-account-size')?.value) || 200;
+                        const riskPct = parseFloat(document.getElementById('signal-risk-pct')?.value) || 2;
+                        const riskDollars = accountSize * (riskPct / 100);
+                        // Use a rough ATR estimate: ~2% of price for a default if we don't have ATR
+                        const atrEstimate = s.price * 0.02;
+                        const stopDistance = atrEstimate * 1.5;
+                        const shares = stopDistance > 0 ? Math.floor(riskDollars / stopDistance) : 0;
+                        const stopLoss = isBullish ? (s.price - stopDistance) : (s.price + stopDistance);
+
                         return `
                             <tr class="${rowClass}" style="cursor:pointer" data-symbol="${App.escapeHtml(s.symbol)}">
                                 <td class="text-mono">${App.escapeHtml(s.date)}</td>
@@ -170,6 +191,8 @@ const Signals = {
                                 <td><span class="direction-badge ${dirClass}">${dirLabel}</span></td>
                                 <td>${App.escapeHtml(s.signal)}</td>
                                 <td class="text-mono">${App.formatPrice(s.price)}</td>
+                                <td class="text-mono" style="color:var(--green)">${shares}</td>
+                                <td class="text-mono" style="color:var(--red)">${App.formatPrice(stopLoss)}</td>
                                 <td class="text-muted">${ageText}</td>
                             </tr>
                         `;

@@ -14,3 +14,16 @@ python-jose[cryptography]>=3.3.0
 
 # Alpaca (real-time data + paper trading)
 alpaca-py>=0.28.0
+
+# Sentiment analysis
+vaderSentiment>=3.3.2
+
+# Reddit API (social momentum scanning)
+praw>=7.7.0
+
+# Background task scheduler
+APScheduler>=3.10.0
+
+# Web scraping (insider trading)
+beautifulsoup4>=4.12.0
+lxml>=5.0.0

@@ -200,6 +200,21 @@ const PaperTrading = {
                     <div id="pt-current-price" class="pt-price-hint"></div>
                 </div>
 
+                <div id="pt-position-sizing" class="pt-position-sizing hidden">
+                    <div class="card-header" style="padding:8px 0;border:none"><h4 style="font-size:0.85rem;margin:0">Position Sizing</h4></div>
+                    <div style="display:flex;gap:8px;margin-bottom:8px">
+                        <div class="form-group" style="flex:1;margin-bottom:0">
+                            <label style="font-size:0.75rem">Account $</label>
+                            <input type="number" id="pt-ps-account" value="100000" step="1000" min="0" style="font-size:0.85rem">
+                        </div>
+                        <div class="form-group" style="flex:1;margin-bottom:0">
+                            <label style="font-size:0.75rem">Risk %</label>
+                            <input type="number" id="pt-ps-risk" value="2" step="0.5" min="0.1" max="10" style="font-size:0.85rem">
+                        </div>
+                    </div>
+                    <div id="pt-ps-result" style="font-size:0.8rem;color:var(--text-secondary)"></div>
+                </div>
+
                 <div class="form-group">
                     <label>Side</label>
                     <div class="pt-side-toggle">
@@ -299,6 +314,15 @@ const PaperTrading = {
             priceTimeout = setTimeout(() => this.lookupPrice(), 500);
         });
 
+        // Position sizing inputs
+        ['pt-ps-account', 'pt-ps-risk'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', () => {
+                const sym = document.getElementById('pt-symbol').value.trim().toUpperCase();
+                if (sym) this.calcPositionSize(sym);
+            });
+        });
+
         // Qty/price change for preview
         ['pt-qty', 'pt-limit-price', 'pt-stop-price'].forEach(id => {
             const el = document.getElementById(id);
@@ -332,8 +356,10 @@ const PaperTrading = {
     async lookupPrice() {
         const symbol = document.getElementById('pt-symbol').value.trim().toUpperCase();
         const hint = document.getElementById('pt-current-price');
+        const psPanel = document.getElementById('pt-position-sizing');
         if (!symbol || symbol.length < 1) {
             hint.innerHTML = '';
+            if (psPanel) psPanel.classList.add('hidden');
             return;
         }
         try {
@@ -342,13 +368,44 @@ const PaperTrading = {
             if (snap && snap.price) {
                 const changeClass = snap.change_pct >= 0 ? 'text-green' : 'text-red';
                 hint.innerHTML = `Current: <strong>$${snap.price.toFixed(2)}</strong> <span class="${changeClass}">${snap.change_pct >= 0 ? '+' : ''}${snap.change_pct?.toFixed(2) || 0}%</span>`;
+                // Position sizing
+                if (psPanel) {
+                    psPanel.classList.remove('hidden');
+                    this.calcPositionSize(symbol);
+                }
             } else {
                 hint.innerHTML = '';
+                if (psPanel) psPanel.classList.add('hidden');
             }
         } catch {
             hint.innerHTML = '';
+            if (psPanel) psPanel.classList.add('hidden');
         }
         this.updateOrderPreview();
+    },
+
+    async calcPositionSize(symbol) {
+        const account = parseFloat(document.getElementById('pt-ps-account')?.value) || 100000;
+        const risk = parseFloat(document.getElementById('pt-ps-risk')?.value) || 2;
+        const result = document.getElementById('pt-ps-result');
+        if (!result) return;
+        try {
+            const ps = await App.post('/api/position-size', {
+                symbol: symbol || document.getElementById('pt-symbol').value.trim().toUpperCase(),
+                account_size: account,
+                risk_pct: risk
+            });
+            result.innerHTML = `
+                <div style="display:flex;gap:12px;flex-wrap:wrap;padding:4px 0">
+                    <span><strong style="color:var(--green)">${ps.shares}</strong> shares</span>
+                    <span>Stop: <strong style="color:var(--red)">$${ps.stop_loss_price?.toFixed(2)}</strong></span>
+                    <span>TP: <strong style="color:var(--green)">$${ps.take_profit_price?.toFixed(2)}</strong></span>
+                    <span>Risk: <strong>$${ps.risk_dollars?.toFixed(0)}</strong></span>
+                </div>
+            `;
+        } catch {
+            result.innerHTML = '';
+        }
     },
 
     updateOrderPreview() {

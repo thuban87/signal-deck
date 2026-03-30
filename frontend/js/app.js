@@ -84,6 +84,8 @@ const App = {
     showLogin() {
         document.getElementById('login-screen').classList.remove('hidden');
         document.getElementById('app').classList.add('hidden');
+        document.getElementById('quick-log-fab').classList.add('hidden');
+        document.getElementById('quick-log-panel').classList.add('hidden');
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
@@ -93,6 +95,7 @@ const App = {
     showApp() {
         document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
+        document.getElementById('quick-log-fab').classList.remove('hidden');
         this.loadConfig();
         this.startAutoRefresh();
     },
@@ -149,6 +152,9 @@ const App = {
         this.currentPage = page;
         const content = document.getElementById('main-content');
 
+        // Clean up previous page state
+        if (typeof Discover !== 'undefined' && Discover.destroy) Discover.destroy();
+
         switch (page) {
             case 'dashboard':
                 Dashboard.render(content);
@@ -165,6 +171,15 @@ const App = {
                 break;
             case 'paper':
                 PaperTrading.render(content);
+                break;
+            case 'investigate':
+                Investigator.render(content, param ? param.toUpperCase() : null);
+                break;
+            case 'discover':
+                Discover.render(content, param || null);
+                break;
+            case 'settings':
+                Settings.render(content);
                 break;
             default:
                 this.navigate('#/dashboard');
@@ -292,6 +307,56 @@ const App = {
         });
         document.getElementById('add-symbol-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') document.getElementById('add-symbol-confirm').click();
+        });
+
+        // Quick-Logger FAB
+        const fab = document.getElementById('quick-log-fab');
+        const panel = document.getElementById('quick-log-panel');
+        const qlInput = document.getElementById('quick-log-input');
+        const qlFeedback = document.getElementById('quick-log-feedback');
+
+        fab.addEventListener('click', () => {
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                qlInput.value = '';
+                qlFeedback.classList.add('hidden');
+                setTimeout(() => qlInput.focus(), 100);
+            }
+        });
+
+        document.getElementById('quick-log-close').addEventListener('click', () => {
+            panel.classList.add('hidden');
+        });
+
+        document.getElementById('quick-log-submit').addEventListener('click', async () => {
+            const raw = qlInput.value.trim();
+            if (!raw) return;
+            try {
+                const result = await this.post('/api/quick-log', { input: raw });
+                qlInput.value = '';
+                qlFeedback.classList.remove('hidden');
+                if (result.resolved_ticker) {
+                    qlFeedback.className = 'quick-log-feedback success';
+                    qlFeedback.textContent = `✓ Logged: ${result.resolved_ticker}${result.resolved_name ? ' — ' + result.resolved_name : ''}`;
+                } else {
+                    qlFeedback.className = 'quick-log-feedback warning';
+                    qlFeedback.textContent = `⚠ Logged "${raw}" — couldn't resolve a ticker`;
+                }
+                this.toast('Idea logged', 'success');
+                // Refresh dashboard if on it
+                if (this.currentPage === 'dashboard' && typeof Dashboard !== 'undefined') {
+                    Dashboard.refreshQuickLogs();
+                }
+                setTimeout(() => qlFeedback.classList.add('hidden'), 4000);
+            } catch (err) {
+                qlFeedback.className = 'quick-log-feedback error';
+                qlFeedback.textContent = err.message;
+                qlFeedback.classList.remove('hidden');
+            }
+        });
+
+        qlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('quick-log-submit').click();
         });
 
         // Initial route

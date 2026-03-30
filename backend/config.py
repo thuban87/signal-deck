@@ -77,6 +77,18 @@ ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
 ALPACA_BASE_URL = os.environ.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 
 # ---------------------------------------------------------------------------
+# Finnhub API (free tier — earnings, news, sentiment)
+# ---------------------------------------------------------------------------
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
+
+# ---------------------------------------------------------------------------
+# Reddit API (optional — social momentum scanning via PRAW)
+# Sign up at https://www.reddit.com/prefs/apps/ (script type)
+# ---------------------------------------------------------------------------
+REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET", "")
+
+# ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
 DB_PATH = os.environ.get("DB_PATH", str(Path(__file__).parent / "trading.db"))

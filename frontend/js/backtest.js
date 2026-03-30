@@ -44,14 +44,52 @@ const Backtest = {
                 </div>
                 <div class="form-group" style="margin-bottom:0">
                     <label style="visibility:hidden">_</label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;padding:8px 0" title="Check fundamentals (P/E, EPS, D/E, FCF) before running — warns if the stock fails your criteria">
+                        <input type="checkbox" id="bt-fund-check"> Fundamental Filters
+                    </label>
+                </div>
+                <div class="form-group" style="margin-bottom:0">
+                    <label style="visibility:hidden">_</label>
                     <button class="btn btn-primary" id="bt-run">Run Backtest</button>
                 </div>
+            </div>
+
+            <div id="bt-fund-panel" class="hidden" style="margin-top:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md)">
+                <div class="screener-filters">
+                    <div class="form-group" title="Price-to-Earnings ratio — how much investors pay per dollar of earnings. Lower means cheaper relative to profits. A P/E of 15 is considered average, above 30 is expensive.">
+                        <label>Max P/E</label>
+                        <input type="number" id="bt-max-pe" placeholder="30" step="1">
+                    </div>
+                    <div class="form-group" title="Earnings Per Share — how much profit the company makes for each share of stock. Higher is better. Negative means the company is losing money.">
+                        <label>Min EPS</label>
+                        <input type="number" id="bt-min-eps" placeholder="0" step="0.1">
+                    </div>
+                    <div class="form-group" title="Debt-to-Equity ratio — how much debt the company has compared to shareholder value. Below 1 is conservative, above 2 means heavy debt. Lower is generally safer.">
+                        <label>Max D/E</label>
+                        <input type="number" id="bt-max-de" placeholder="2" step="0.1">
+                    </div>
+                    <div class="form-group" title="Free Cash Flow in millions — actual cash the company generates after expenses. Positive means the company is producing real cash, not just paper profits. Higher is better.">
+                        <label>Min FCF (M)</label>
+                        <input type="number" id="bt-min-fcf" placeholder="0" step="100">
+                    </div>
+                </div>
+                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:8px">If the stock fails any filter, the backtest will still run but show a warning.</p>
             </div>
 
             <div id="bt-results"></div>
         `;
 
         document.getElementById('bt-run').addEventListener('click', () => this.runBacktest());
+
+        // Fundamental filters checkbox toggle
+        document.getElementById('bt-fund-check').addEventListener('change', (e) => {
+            const panel = document.getElementById('bt-fund-panel');
+            if (e.target.checked) {
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        });
 
         const symbolInput = document.getElementById('bt-symbol');
 
@@ -165,9 +203,28 @@ const Backtest = {
             <div class="loading-spinner"><div class="spinner"></div>Running backtest for ${symbol}...</div>
         `;
 
+        // Check fundamental filters (only if checkbox is checked)
+        let fundWarnings = [];
+        const fundEnabled = document.getElementById('bt-fund-check')?.checked;
+        const maxPe = parseFloat(document.getElementById('bt-max-pe')?.value);
+        const minEps = parseFloat(document.getElementById('bt-min-eps')?.value);
+        const maxDe = parseFloat(document.getElementById('bt-max-de')?.value);
+        const minFcf = parseFloat(document.getElementById('bt-min-fcf')?.value);
+
+        if (fundEnabled && (!isNaN(maxPe) || !isNaN(minEps) || !isNaN(maxDe) || !isNaN(minFcf))) {
+            try {
+                const fund = await App.get(`/api/stock/${symbol}/fundamentals`);
+                if (!isNaN(maxPe) && fund.pe_ratio != null && fund.pe_ratio > maxPe) fundWarnings.push(`P/E ${fund.pe_ratio.toFixed(1)} > ${maxPe}`);
+                if (!isNaN(minEps) && fund.eps != null && fund.eps < minEps) fundWarnings.push(`EPS ${fund.eps.toFixed(2)} < ${minEps}`);
+                if (!isNaN(maxDe) && fund.debt_to_equity != null && fund.debt_to_equity > maxDe) fundWarnings.push(`D/E ${fund.debt_to_equity.toFixed(2)} > ${maxDe}`);
+                if (!isNaN(minFcf) && fund.free_cash_flow != null && (fund.free_cash_flow / 1e6) < minFcf) fundWarnings.push(`FCF $${(fund.free_cash_flow / 1e6).toFixed(0)}M < $${minFcf}M`);
+            } catch { /* fundamentals unavailable, skip */ }
+        }
+
         try {
             const data = await App.get(`/api/backtest/${symbol}?period=${period}&include_bearish=${includeBearish}`);
             this.lastResult = data;
+            this.lastFundWarnings = fundWarnings;
             this.tradeFilters = { direction: 'all', exitReason: 'all', pnl: 'all' };
             this.tradeSort = { column: 'entry_date', direction: 'asc' };
             this.renderResults(data);
@@ -193,33 +250,43 @@ const Backtest = {
         // Get unique exit reasons for filter dropdown
         const exitReasons = [...new Set(data.trades.map(t => t.exit_reason))].sort();
 
+        // Fundamental warnings
+        const fundWarnings = this.lastFundWarnings || [];
+        const fundWarningHtml = fundWarnings.length > 0
+            ? `<div style="background:var(--red-dim);border:1px solid rgba(255,71,87,0.3);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.85rem">
+                <strong style="color:var(--red)">Fundamental Filters Failed:</strong>
+                <span style="color:var(--text-secondary);margin-left:8px">${fundWarnings.join(' | ')}</span>
+               </div>`
+            : '';
+
         resultsArea.innerHTML = `
+            ${fundWarningHtml}
             <div class="backtest-results">
-                <div class="stat-card">
+                <div class="stat-card" title="Total number of trades the signal strategy opened and closed during this period">
                     <div class="stat-card-value">${data.total_trades}</div>
                     <div class="stat-card-label">Total Trades</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" title="How many trades were bullish bets (Long) vs bearish bets (Short)">
                     <div class="stat-card-value">${data.long_trades}L / ${data.short_trades}S</div>
                     <div class="stat-card-label">Long / Short</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" title="Percentage of trades that made money. Above 50% means more winners than losers">
                     <div class="stat-card-value">${data.win_rate}%</div>
                     <div class="stat-card-label">Win Rate</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" title="Average profit or loss per trade. Positive means the strategy makes money on a typical trade">
                     <div class="stat-card-value ${pnlColor}">${data.avg_pnl >= 0 ? '+' : ''}${data.avg_pnl}%</div>
                     <div class="stat-card-label">Avg Return/Trade</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" title="Total return if you followed every signal. This is what your portfolio would have gained or lost">
                     <div class="stat-card-value ${pnlColor}">${data.total_pnl >= 0 ? '+' : ''}${data.total_pnl}%</div>
                     <div class="stat-card-label">Cumulative Return</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" title="What you'd have made just buying the stock and holding it the whole time — the simplest strategy to beat">
                     <div class="stat-card-value ${bhColor}">${data.buy_hold_pct >= 0 ? '+' : ''}${data.buy_hold_pct}%</div>
                     <div class="stat-card-label">Buy & Hold</div>
                 </div>
-                <div class="stat-card" style="border-color:${data.edge >= 0 ? 'rgba(0,212,170,0.3)' : 'rgba(255,71,87,0.3)'}">
+                <div class="stat-card" title="The difference between the signal strategy and buy & hold. Positive means the signals beat just holding the stock" style="border-color:${data.edge >= 0 ? 'rgba(0,212,170,0.3)' : 'rgba(255,71,87,0.3)'}">
                     <div class="stat-card-value ${edgeColor}">${data.edge >= 0 ? '+' : ''}${data.edge}%</div>
                     <div class="stat-card-label">Edge vs Buy & Hold</div>
                 </div>
