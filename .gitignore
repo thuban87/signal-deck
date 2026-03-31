@@ -17,6 +17,7 @@ build/
 *.db
 *.db-wal
 *.db-shm
+*.ffs_db
 
 # Backtest logs (generated, large)
 backtest_llm_*.json
