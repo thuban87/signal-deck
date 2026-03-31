@@ -13,7 +13,7 @@ A full-stack trading signal dashboard that:
 8. **Quick-Logger** FAB — log stock ideas from anywhere, auto-resolves tickers
 9. **Sector Heatmap** — treemap of 11 SPDR sector ETFs with daily performance
 10. **Custom Baskets** — "Write What You Know" micro-sector groups with aggregate metrics
-11. **Widget Grid** — draggable/resizable dashboard layout via gridstack.js with edit mode and persistence
+11. **Widget Grid** — draggable/resizable dashboard layout via react-grid-layout with edit mode and persistence
 12. **Discover Hub** — 5-source stock discovery (Matchmaker swipe UI, Congress trades, Insider scan, Reddit social momentum, Options flow)
 13. **Trade Actions** — automated Buy/Sell/Hold recommendations with confidence levels
 14. **What-If Calculator** — historical trade simulation with candlestick chart and P&L
@@ -42,23 +42,24 @@ Trading/
 │   ├── data_fetcher.py        # yfinance data fetching
 │   ├── llm_analyst.py         # Ollama LLM integration (optional)
 │   └── main.py                # Original CLI entry point
-├── frontend/                   # Web UI (vanilla HTML/CSS/JS)
-│   ├── index.html             # App shell + sidebar nav + EasyMDE/gridstack CDN
-│   ├── favicon.svg            # SVG favicon (dark bg, green chart line)
-│   ├── css/styles.css         # Premium dark-mode design system
-│   └── js/
-│       ├── app.js             # Router, API client, auth, state, Quick-Logger FAB
-│       ├── dashboard.js       # Widget grid + watchlist + heatmap + baskets + screener
-│       ├── signals.js         # Signal feed table + filters + position sizing
-│       ├── stock.js           # Gridstack stock detail — chart, indicators, peers, insider, social, notes
-│       ├── backtest.js        # Backtester + equity curve + fundamental filters
-│       ├── paper.js           # Paper trading (Alpaca-synced + local fallback)
-│       ├── investigator.js    # Deep-dive research (news, sentiment, insider, earnings)
-│       ├── discover.js        # Discover hub — Matchmaker, Congress, Insider, Social, Options
-│       ├── actions.js         # Trade actions — Buy/Sell/Hold recommendations
-│       ├── calculator.js      # What-if trade calculator with chart
-│       ├── performance.js     # Performance analytics — equity curve, metrics, win rate
-│       └── settings.js        # Settings page — discovery tuning
+├── frontend-react/             # React + Vite SPA (active frontend source)
+│   ├── vite.config.js         # Vite config — base: '/static/', outDir: '../frontend-build'
+│   ├── index.html             # Vite entry point
+│   └── src/
+│       ├── main.jsx           # App bootstrap — React Router, TanStack Query, Zustand
+│       ├── App.jsx            # Layout shell — sidebar, hamburger menu, toast, Quick-Logger
+│       ├── styles/styles.css  # Premium dark-mode design system
+│       ├── api/client.js      # Fetch wrapper with JWT auth
+│       ├── stores/            # Zustand stores (auth, app state)
+│       ├── hooks/             # Custom hooks (usePaperTrading, useGridLayout, etc.)
+│       ├── pages/             # Page components (Dashboard, Stock, Discover, etc.)
+│       ├── components/        # Reusable UI + feature widgets
+│       │   ├── ui/            # WidgetGrid, PriceChart, AreaChart, Modal, etc.
+│       │   ├── dashboard/     # Dashboard widgets (7 widgets)
+│       │   └── stock/         # Stock detail widgets (16 widgets)
+│       └── utils/             # formatters.js, calculations.js
+├── frontend-build/             # Vite build output (served by backend)
+├── frontend/                   # Legacy vanilla JS/CSS/HTML (preserved, unused when build exists)
 ├── docs/dev/
 │   ├── Deployment.md          # Nginx + systemd deployment guide
 │   ├── Findings.md            # Backtest results analysis
@@ -66,6 +67,8 @@ Trading/
 │   └── Trading Crash Course.md
 ├── start-server.bat           # Launch backend server — Windows (port 8005)
 ├── stop-server.bat            # Kill running server processes — Windows
+├── deploy.sh                  # Linux deployment script
+├── deploy.bat                 # Windows deployment script
 ├── .env.example               # Template for secrets
 ├── .gitignore
 ├── requirements.txt
@@ -121,6 +124,33 @@ python backtest_signals.py AAPL MSFT NVDA
 # LLM backtest (slow — ~40 Ollama calls per symbol)
 python backtest_llm.py AAPL
 ```
+
+---
+
+## Frontend Tech Stack (React + Vite)
+
+Migrated from vanilla JS/CSS/HTML to a React SPA. See `docs/dev/Migration-Plan.md` for the full 7-phase plan.
+
+- **Vite 8.0.3** — build tool, `base: '/static/'`, output to `../frontend-build`
+- **React 19** — plain JSX, no TypeScript
+- **React Router v6** — HashRouter (`#/dashboard`, `#/stock/:symbol`, etc.)
+- **TanStack Query v5** — API data fetching + caching
+- **Zustand** — global state (auth, app settings)
+- **react-grid-layout v2.2.3** — draggable/resizable widget grids
+- **lightweight-charts v5.1.0** — TradingView charting (v5 API: `chart.addSeries(AreaSeries, {...})`)
+- **EasyMDE** — Markdown editor for per-stock notes
+- **Vitest 4.1.2** — 43 unit tests (formatters, calculations, API client, signals)
+
+### Build & Serve
+
+```bash
+cd frontend-react
+npm install
+npm run build          # outputs to ../frontend-build/
+npm test               # runs Vitest
+```
+
+Backend auto-detects `frontend-build/` and serves it. Falls back to `frontend/` if no build exists.
 
 ---
 
@@ -230,7 +260,7 @@ Group related stocks into named baskets with emoji icons. 4 default baskets seed
 
 ## Widget Grid System
 
-Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** for draggable/resizable widget layout.
+Both the **Dashboard** and **Stock Detail** pages use **react-grid-layout v2.2.3** for draggable/resizable widget layout.
 
 ### Dashboard Widgets
 - **7 widgets:** Market Status, Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
@@ -254,7 +284,7 @@ Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** f
 
 ### Mobile
 - **Scroll handle:** fixed bottom bar with ▲/▼ buttons appears during edit mode for touch-device scrolling
-- **`App.isMobile()`** — `matchMedia('(max-width: 768px)')` check used by `getLayoutKey()` in both modules
+- **Mobile detection** — `matchMedia('(max-width: 768px)')` check used by `getLayoutKey()` in `useGridLayout` hook
 
 ---
 
@@ -438,7 +468,7 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Performance Analytics page — 14 metrics, equity curve, win rate by tag, trade distribution
 - [x] Alpha Vantage API integration
 - [x] Sidebar reorder (logical flow: Dashboard → Discover → ... → Performance → Settings)
-- [ ] **React + Vite migration** — rewrite frontend as React SPA (see `docs/dev/Migration-Plan.md`)
+- [x] **React + Vite migration** — React 19, Vite 8, TanStack Query v5, Zustand, react-grid-layout, lightweight-charts v5 (see `docs/dev/Migration-Plan.md`)
 - [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)

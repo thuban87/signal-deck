@@ -1123,3 +1123,106 @@ Changed:
 ### Next Session Prompt:
 
 > Session added Macro Economic Warning System (curated 2025-2026 calendar with Finnhub + Alpha Vantage supplements, dashboard banner + stock detail widget, clickable events with past 7 days shown) and Performance Analytics page (14 metrics, equity curve, win rate by tag, trade distribution donut). Sidebar reordered to logical flow. New backend module `economic_events.py`. Alpha Vantage API integrated. Cache-busting at `?v=5`. Server runs on port 8005. Next: GPU cooldown, intraday support, alerts, deployment.
+
+---
+
+## 2026-03-30 (Sessions 5–7) — React + Vite Migration (Phases 1–7)
+
+**Focus:** Complete frontend rewrite from vanilla JS/CSS/HTML to React + Vite SPA. Followed the 7-phase plan in `docs/dev/Migration-Plan.md`.
+
+### Completed:
+
+All 7 phases of the migration plan executed:
+
+- **Phase 1** — Project scaffolding: Vite config (`base: '/static/'`, `outDir: '../frontend-build'`), React Router HashRouter, Zustand stores (auth + app), TanStack Query client, API fetch wrapper with JWT auth
+- **Phase 2** — Shell + auth: App layout, Sidebar component, LoginPage, ToastContainer, QuickLogFab, ErrorBoundary, mobile hamburger menu
+- **Phase 3** — Dashboard page: 7 widget components (Market Status, Signals, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener) + WidgetGrid via react-grid-layout + AddSymbolModal
+- **Phase 4** — Stock detail page: 16 widget components (Chart, Indicators, Action Card, Earnings, Related Stocks, Macro Events, Signals, Fundamentals, Insider, News, Social, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis) + PriceChart with TradingView Lightweight Charts
+- **Phase 5** — Remaining pages: Signals, Backtest, Paper Trading (Alpaca + local), Investigator, Discover (5-tab hub), Actions, Calculator, Performance, Settings
+- **Phase 6** — Shared components + utilities: formatters.js, calculations.js, LoadingSkeleton, EmptyState, PageHeader, MetricCard, Modal, FilterBar, AreaChart
+- **Phase 7** — Testing + deployment config: 43 Vitest tests (formatters, calculations, API client, signals), Vite build verified, backend `server.py` updated to serve `frontend-build/` with SPA catch-all route
+
+### Backend Changes for Migration (`server.py`):
+- [x] `frontend_build_dir` preferred over `frontend_dir` when `frontend-build/` exists
+- [x] Static files mounted at `/static` from the active frontend directory
+- [x] SPA catch-all `GET /{full_path:path}` added as last route for React Router client-side navigation
+
+### Tech Stack:
+- Vite 8.0.3, React 19, React Router v6 (HashRouter), Zustand, TanStack Query v5
+- lightweight-charts 5.1.0, react-grid-layout 2.2.3, EasyMDE (kept for notes)
+- Vitest 4.1.2 (43 tests), ESLint
+
+### Migration Artifacts:
+- Source: `frontend-react/` (full React project)
+- Build output: `frontend-build/` (served by backend)
+- Original frontend: `frontend/` (preserved, unused when build exists)
+- Plan doc: `docs/dev/Migration-Plan.md`
+
+---
+
+## 2026-03-30 (Sessions 8–9) — Post-Migration Bug Fixes
+
+**Focus:** Two rounds of bug fixing after the React migration was deployed and manually tested across all pages.
+
+### Round 1 — Critical Rendering Fixes:
+
+- 🐛 **Dashboard completely empty** — `react-grid-layout` v2.2.3's `useContainerWidth()` returns `{width, containerRef}` object, not a plain number. Code assigned the object to `width`, so `width > 0` was always falsy → grid never rendered. Fixed destructuring in `WidgetGrid.jsx`.
+- 🐛 **Paper Trading API paths** — `usePaperTrading.js` used `/api/alpaca/*` but server uses `/api/paper/*` for all paper trading. Fixed all endpoint URLs with proper Alpaca/Local conditional routing.
+- 🐛 **SPA catch-all intercepting API routes** — The `/{full_path:path}` catch-all was returning `index.html` for some API requests. Confirmed it only affects routes not explicitly defined above it.
+
+### Round 2 — Crashes, Styling, and Feature Parity:
+
+**Crashes fixed:**
+- 🐛 **Investigator `toFixed` crash** — Insider API returns strings like `"$271.23"` and `"-$1,017,655"`. `formatPrice`, `formatNumber`, `formatChange` now strip `$`,`,` and coerce to Number before formatting.
+- 🐛 **Backtest `addAreaSeries` crash** — lightweight-charts v5 removed `chart.addAreaSeries()`. Updated `AreaChart.jsx` and `PriceChart.jsx` to use v5 API: `chart.addSeries(AreaSeries, {...})`, etc.
+- 🐛 **Related Stocks crash** — API returns `{symbol, peers: [...]}` but widget called `.map()` on the wrapper object. Fixed data access in `RelatedStocksWidget.jsx`.
+
+**Missing features restored:**
+- 🐛 **Screener widget missing** — `useGridLayout` hook didn't merge new default widgets into saved layouts. Fixed hook + Screener defaults to expanded.
+- 🐛 **Matchmaker card restyled** — Rewrote card to use original CSS classes, added mini candlestick chart via new `MiniCandlestickChart.jsx`, added 52-week range + 1-month return.
+
+**Styling fixes:**
+- 🐛 **CSS class mismatches** — React components used generic class names (`.data-table`, `.badge`, `.input`, `.btn-success`, `.page-content`) that didn't exist in the legacy `styles.css`. Added ~200 lines of generic CSS rules.
+- 🐛 **Missing CSS variables** — Components referenced `var(--bullish)` / `var(--bearish)` but only `--green` / `--red` were defined. Added aliases.
+- 🐛 **Stock detail grid overlapping** — Widget heights too small. Increased heights and fixed y-coordinate spacing.
+
+**Infrastructure:**
+- [x] Cache-busting headers — `Cache-Control: no-store` on all `index.html` responses
+
+### Files Changed (Bug Fix Rounds):
+
+| File | Changes |
+|------|---------|
+| `frontend-react/src/components/ui/WidgetGrid.jsx` | `useContainerWidth()` destructuring fix |
+| `frontend-react/src/components/ui/AreaChart.jsx` | lightweight-charts v5 API |
+| `frontend-react/src/components/ui/PriceChart.jsx` | lightweight-charts v5 API (4 series types) |
+| `frontend-react/src/components/ui/MiniCandlestickChart.jsx` | New — mini chart for Matchmaker |
+| `frontend-react/src/utils/formatters.js` | Safe string-to-number coercion |
+| `frontend-react/src/hooks/usePaperTrading.js` | Fixed API endpoint paths |
+| `frontend-react/src/hooks/useGridLayout.js` | Merge missing widgets from defaults |
+| `frontend-react/src/components/stock/RelatedStocksWidget.jsx` | Fixed `peers.peers` data access |
+| `frontend-react/src/components/dashboard/ScreenerWidget.jsx` | Default to expanded |
+| `frontend-react/src/pages/StockDetailPage.jsx` | Increased widget grid heights |
+| `frontend-react/src/pages/DiscoverPage.jsx` | Matchmaker card rewrite + proper CSS classes |
+| `frontend-react/src/styles/styles.css` | ~200 lines: generic classes, CSS variable aliases |
+| `backend/server.py` | `Cache-Control: no-store` on index.html responses |
+
+### Testing Notes:
+
+- ✅ Build: 191 modules, no errors
+- ✅ Tests: 43/43 passing
+- ✅ Server: 200 OK
+- ⚠️ Manual testing in progress — some styling gaps may remain
+
+### Next Steps:
+
+- [ ] Continue manual testing across all pages for remaining styling gaps
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support
+- [ ] Alert notifications
+- [ ] Deploy to Linux server (Nginx + systemd)
+- [ ] Login rate limiting (`slowapi`)
+
+### Next Session Prompt:
+
+> React + Vite migration complete (7 phases per `docs/dev/Migration-Plan.md`). Two rounds of post-migration bug fixes applied: WidgetGrid rendering, Paper Trading API paths, lightweight-charts v5 API, formatter crashes, CSS class alignment (~200 lines added), Matchmaker restyled with mini candlestick chart, Screener visibility, stock detail grid heights, cache-busting headers. Build: 191 modules, 43 tests passing. Source at `frontend-react/`, build at `frontend-build/`, original `frontend/` preserved. Some styling gaps may remain — continue manual testing.

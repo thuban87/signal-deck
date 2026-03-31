@@ -96,8 +96,9 @@ app = FastAPI(
     redoc_url=None,
 )
 
-# Serve frontend files
-frontend_dir = Path(__file__).parent.parent / "frontend"
+# Serve frontend files (React build output, falls back to vanilla frontend)
+frontend_build_dir = Path(__file__).parent.parent / "frontend-build"
+frontend_dir = frontend_build_dir if frontend_build_dir.exists() else Path(__file__).parent.parent / "frontend"
 if frontend_dir.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
 
@@ -163,14 +164,14 @@ async def login(body: dict = Body(...)):
 # Pages (serve index.html for all frontend routes)
 # ---------------------------------------------------------------------------
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
-    return FileResponse(str(frontend_dir / "index.html"))
+    return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-store"})
 
 
-@app.get("/login")
+@app.get("/login", include_in_schema=False)
 async def login_page():
-    return FileResponse(str(frontend_dir / "index.html"))
+    return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-store"})
 
 
 # ---------------------------------------------------------------------------
@@ -2627,6 +2628,19 @@ def _get_action_for_symbol(symbol: str, lookback_days: int = 5) -> dict:
             "bb_lower": summary.get("bb_lower"),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# SPA catch-all — serve index.html for any unmatched GET (React Router)
+# ---------------------------------------------------------------------------
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    """Serve index.html for client-side routing (must be last route)."""
+    index = frontend_dir / "index.html"
+    if index.exists():
+        return FileResponse(str(index), headers={"Cache-Control": "no-store"})
+    raise HTTPException(status_code=404, detail="Frontend not found")
 
 
 # ---------------------------------------------------------------------------
