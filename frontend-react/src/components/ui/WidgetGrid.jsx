@@ -48,12 +48,11 @@ export default function WidgetGrid({
           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 0 }}
           cols={cols}
           rowHeight={rowHeight}
-          width={width}
           margin={[8, 8]}
-          isDraggable={editMode}
-          isResizable={editMode}
+          width={width}
+          dragConfig={{ enabled: editMode, handle: '.widget-header' }}
+          resizeConfig={{ enabled: editMode }}
           onLayoutChange={handleLayoutChange}
-          draggableHandle=".widget-header"
         >
           {widgets.map((widget) => (
             <div key={widget.id} className="widget-wrapper">

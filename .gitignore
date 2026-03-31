@@ -46,6 +46,7 @@ package-lock.json
 *.log
 *.local
 dist-ssr
+frontend-build/
 
 # Python virtual environments
 venv/
