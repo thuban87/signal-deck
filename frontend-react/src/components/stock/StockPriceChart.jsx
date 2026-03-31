@@ -1,10 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { createChart } from 'lightweight-charts';
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
 
 export default function StockPriceChart({ data, onDatePick }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [pickMode, setPickMode] = useState(null);
 
   const handleChartClick = useCallback((param) => {
@@ -27,7 +28,7 @@ export default function StockPriceChart({ data, onDatePick }) {
     chartRef.current = chart;
 
     // Candlestick series
-    const candleSeries = chart.addCandlestickSeries({
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#00d4aa', downColor: '#ff4757',
       borderUpColor: '#00d4aa', borderDownColor: '#ff4757',
       wickUpColor: '#00d4aa', wickDownColor: '#ff4757',
@@ -35,7 +36,7 @@ export default function StockPriceChart({ data, onDatePick }) {
     candleSeries.setData(data.ohlcv.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
 
     // Volume
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeries = chart.addSeries(HistogramSeries, {
       color: '#26a69a', priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     });
@@ -45,19 +46,19 @@ export default function StockPriceChart({ data, onDatePick }) {
     // SMA overlays from summary
     if (data.summary) {
       if (data.summary.sma20_series) {
-        const sma20 = chart.addLineSeries({ color: '#2196F3', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+        const sma20 = chart.addSeries(LineSeries, { color: '#2196F3', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
         sma20.setData(data.summary.sma20_series.map(p => ({ time: p.time, value: p.value })));
       }
       if (data.summary.sma50_series) {
-        const sma50 = chart.addLineSeries({ color: '#9C27B0', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+        const sma50 = chart.addSeries(LineSeries, { color: '#9C27B0', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
         sma50.setData(data.summary.sma50_series.map(p => ({ time: p.time, value: p.value })));
       }
       if (data.summary.bb_upper_series) {
-        const bbUp = chart.addLineSeries({ color: '#FFD700', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+        const bbUp = chart.addSeries(LineSeries, { color: '#FFD700', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
         bbUp.setData(data.summary.bb_upper_series.map(p => ({ time: p.time, value: p.value })));
       }
       if (data.summary.bb_lower_series) {
-        const bbLow = chart.addLineSeries({ color: '#FFD700', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+        const bbLow = chart.addSeries(LineSeries, { color: '#FFD700', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
         bbLow.setData(data.summary.bb_lower_series.map(p => ({ time: p.time, value: p.value })));
       }
     }
@@ -75,6 +76,7 @@ export default function StockPriceChart({ data, onDatePick }) {
       if (cd) {
         const change = cd.close - cd.open;
         const changePct = cd.open !== 0 ? (change / cd.open) * 100 : 0;
+        if (param.point) setTooltipPos({ x: param.point.x, y: param.point.y });
         setTooltip({ open: cd.open, high: cd.high, low: cd.low, close: cd.close, volume: vd?.value, change, changePct });
       }
     });
@@ -106,7 +108,7 @@ export default function StockPriceChart({ data, onDatePick }) {
         </div>
       )}
       {tooltip && (
-        <div className="chart-tooltip" style={{ position: 'absolute', top: 8, left: 8, zIndex: 9, background: 'rgba(26,32,53,0.92)', padding: '6px 10px', borderRadius: 6, fontSize: '0.78rem', color: '#e0e6f0', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+        <div className="chart-tooltip" style={{ position: 'absolute', top: Math.max(0, tooltipPos.y - 70), left: tooltipPos.x + 20, zIndex: 9, background: 'rgba(26,32,53,0.95)', padding: '8px 12px', borderRadius: 6, fontSize: '0.78rem', color: '#e0e6f0', pointerEvents: 'none', whiteSpace: 'nowrap', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', transform: tooltipPos.x > (containerRef.current?.clientWidth || 600) * 0.65 ? 'translateX(calc(-100% - 40px))' : 'none' }}>
           <span>O: {tooltip.open?.toFixed(2)}</span>{' '}
           <span>H: {tooltip.high?.toFixed(2)}</span>{' '}
           <span>L: {tooltip.low?.toFixed(2)}</span>{' '}

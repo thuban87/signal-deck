@@ -21,6 +21,7 @@ import NotesWidget from '../components/stock/NotesWidget';
 import TradeCalculatorWidget from '../components/stock/TradeCalculatorWidget';
 import SavedSimulationsWidget from '../components/stock/SavedSimulationsWidget';
 import LLMAnalysisWidget from '../components/stock/LLMAnalysisWidget';
+import NewsSentimentWidget from '../components/stock/NewsSentimentWidget';
 
 const DEFAULT_LAYOUT = [
   { i: 'chart',            x: 0, y: 0,  w: 8,  h: 9,  minW: 4, minH: 6 },
@@ -39,6 +40,7 @@ const DEFAULT_LAYOUT = [
   { i: 'trade-calculator', x: 6, y: 28, w: 6,  h: 6,  minW: 4, minH: 4 },
   { i: 'simulations',      x: 0, y: 34, w: 6,  h: 5,  minW: 4, minH: 3 },
   { i: 'llm-result',       x: 6, y: 34, w: 6,  h: 5,  minW: 4, minH: 3 },
+  { i: 'news-sentiment',   x: 0, y: 39, w: 6,  h: 5,  minW: 3, minH: 3 },
 ];
 
 const WIDGET_TITLES = {
@@ -58,6 +60,7 @@ const WIDGET_TITLES = {
   'trade-calculator': 'Trade Calculator',
   'simulations': 'Saved Simulations',
   'llm-result': 'LLM Analysis',
+  'news-sentiment': 'News Sentiment',
 };
 
 export default function StockDetailPage() {
@@ -85,11 +88,6 @@ export default function StockDetailPage() {
   const widgetContent = {
     'chart': (
       <div>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-          {['1mo', '3mo', '6mo', '1y', '2y'].map(p => (
-            <button key={p} className={`btn btn-ghost btn-sm ${period === p ? 'active' : ''}`} onClick={() => setPeriod(p)}>{p}</button>
-          ))}
-        </div>
         {isLoading ? <div className="loading-spinner"><div className="spinner" />Loading chart...</div> : <StockPriceChart data={stockData} onDatePick={handleDatePick} />}
       </div>
     ),
@@ -108,6 +106,7 @@ export default function StockDetailPage() {
     'trade-calculator': <TradeCalculatorWidget symbol={symbol} entryDate={calcEntryDate} exitDate={calcExitDate} onEntryDate={setCalcEntryDate} onExitDate={setCalcExitDate} />,
     'simulations': <SavedSimulationsWidget symbol={symbol} />,
     'llm-result': <LLMAnalysisWidget symbol={symbol} />,
+    'news-sentiment': <NewsSentimentWidget symbol={symbol} />,
   };
 
   const widgets = layout.map(item => ({
@@ -118,9 +117,24 @@ export default function StockDetailPage() {
 
   return (
     <div className="page-content">
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <h2>{symbol}</h2>
-        {companyName && <div className="text-muted" style={{ fontSize: '0.9rem' }}>{companyName}</div>}
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <h2>{symbol}</h2>
+          {companyName && <div className="text-muted" style={{ fontSize: '0.9rem' }}>{companyName}</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select className="input" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 'auto' }}>
+            {['1mo', '3mo', '6mo', '1y', '2y'].map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <button className="btn btn-ghost btn-sm" onClick={toggleEditMode}>
+            {editMode ? '✓ Done' : '⚙ Customize'}
+          </button>
+          {editMode && (
+            <button className="btn btn-ghost btn-sm" onClick={resetLayout}>Reset Layout</button>
+          )}
+        </div>
       </div>
 
       <WidgetGrid
@@ -128,8 +142,6 @@ export default function StockDetailPage() {
         layout={layout}
         onLayoutChange={onLayoutChange}
         editMode={editMode}
-        onToggleEdit={toggleEditMode}
-        onReset={resetLayout}
       />
     </div>
   );

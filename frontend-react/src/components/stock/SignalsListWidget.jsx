@@ -8,12 +8,13 @@ export default function SignalsListWidget({ summary }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {signals.map((sig, i) => {
-        const isBullish = sig.direction !== 'short' && sig.direction !== 'bearish';
-        const borderColor = isBullish ? 'var(--green)' : 'var(--red)';
+        const sigText = typeof sig === 'string' ? sig : (sig.name || sig.signal_name || 'Signal');
+        const sigLower = sigText.toLowerCase();
+        const isBearish = sigLower.includes('bearish') || sigLower.includes('overbought') || sigLower.includes('death') || sigLower.includes('below');
+        const borderColor = isBearish ? 'var(--red)' : 'var(--green)';
         return (
-          <div key={i} style={{ borderLeft: `3px solid ${borderColor}`, padding: '6px 10px', borderRadius: 4, fontSize: '0.85rem', background: 'var(--surface)' }}>
-            <span style={{ fontWeight: 500 }}>{sig.name || sig.signal_name || 'Signal'}</span>
-            {sig.type && <span className="text-muted" style={{ marginLeft: 8, fontSize: '0.75rem' }}>{sig.type}</span>}
+          <div key={i} style={{ borderLeft: `3px solid ${borderColor}`, padding: '6px 10px', borderRadius: 4, fontSize: '0.85rem', background: 'var(--bg-card)' }}>
+            <span style={{ fontWeight: 500 }}>{sigText}</span>
           </div>
         );
       })}

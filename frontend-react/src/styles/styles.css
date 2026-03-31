@@ -4944,3 +4944,130 @@ a.quick-log-resolved.ql-stock-link:hover {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+
+/* =====================================================================
+   Search FAB + Search Panel
+   ===================================================================== */
+
+.search-fab {
+    position: fixed;
+    bottom: 92px;
+    right: 28px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(74, 158, 255, 0.4);
+    z-index: 1000;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.search-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(74, 158, 255, 0.5);
+}
+
+.search-fab:active {
+    transform: scale(0.95);
+}
+
+.search-fab svg {
+    width: 22px;
+    height: 22px;
+}
+
+.search-panel {
+    bottom: 150px !important;
+}
+
+.search-results-list {
+    margin-top: 0.5rem;
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+}
+
+.search-result-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    border-bottom: 1px solid var(--border);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background: var(--bg-hover);
+}
+
+@media (max-width: 768px) {
+    .search-fab {
+        bottom: 92px;
+        right: 20px;
+        width: 52px;
+        height: 52px;
+    }
+
+    .search-fab svg {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+
+/* =====================================================================
+   Indicator Bar Fills (MACD bar, etc.)
+   ===================================================================== */
+
+.indicator-bar-fill {
+    height: 6px;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.indicator-bar-fill.bullish-fill {
+    background: var(--green);
+}
+
+.indicator-bar-fill.bearish-fill {
+    background: var(--red);
+}
+
+
+/* =====================================================================
+   Sentiment Gauge (NewsSentimentWidget)
+   ===================================================================== */
+
+.sentiment-gauge {
+    padding: 12px;
+}
+
+.sentiment-bar {
+    height: 8px;
+    border-radius: 4px;
+    position: relative;
+    margin: 8px 0;
+}
+
+.sentiment-bar-indicator {
+    position: absolute;
+    top: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid var(--border);
+    transform: translateX(-50%);
+    box-shadow: var(--shadow-sm);
+}

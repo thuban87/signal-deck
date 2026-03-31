@@ -1216,7 +1216,72 @@ All 7 phases of the migration plan executed:
 
 ### Next Steps:
 
-- [ ] Continue manual testing across all pages for remaining styling gaps
+- [x] Continue manual testing across all pages for remaining styling gaps → done in Sessions 10–11
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support
+- [ ] Alert notifications
+- [ ] Deploy to Linux server (Nginx + systemd)
+- [ ] Login rate limiting (`slowapi`)
+
+---
+
+## 2026-03-31 (Sessions 10–11) — Post-Migration Bug Fixes Round 3–4
+
+**Focus:** Continued manual testing and bug fixing across all pages. Four rounds of targeted fixes addressing crashes, missing features, styling gaps, and UX polish.
+
+### Round 3 — Missing Components, Styling, and Discover Page Overhaul:
+
+**Missing components recreated:**
+- 🐛 **EarningsWidget deleted** — File was deleted in prior session but never recreated. Created new `EarningsWidget.jsx` with correct API field mapping (`data.upcoming?.date`, `data.upcoming?.days_until`, earnings warning for ≤7 days).
+
+**CSS additions (~100 lines):**
+- `.search-fab` / `.search-panel` / `.search-results-list` / `.search-result-item` — Quick search overlay styling
+- `.indicator-bar-fill` with `.bullish-fill` / `.bearish-fill` — colored indicator bar fills
+- `.sentiment-gauge` / `.sentiment-bar` — sentiment analysis gauge component
+
+**Discover page overhaul (all 5 tabs):**
+- **Matchmaker** — centered card layout (`maxWidth: 520px`, `margin: 0 auto`)
+- **Government** — bigger popular ticker cards with blue top border, spelled-out buy/sell counts ("3 buys · 2 sells · 5 politicians"), colored left borders on trade rows
+- **Insider** — added "Market-Wide Insider Trading" header, colored left borders on cards based on signal
+- **Options** — added "Unusual Options Activity" header, summary count cards (Alerts/Tickers) above table
+
+**Settings page:** Changed from CSS grid layout to vertical stacked layout (`flexDirection: column`, `maxWidth: 600px`)
+
+### Round 4 — Crashes and Feature Fixes:
+
+**Crashes fixed:**
+- 🐛 **Trade calculator `setMarkers` crash** — lightweight-charts v5 removed `series.setMarkers()`. Updated to use `createSeriesMarkers(series, markers)` (imported from `lightweight-charts`). Also fixed date field to use `actual_entry_date`/`actual_exit_date` fallbacks.
+- 🐛 **Trade calculator missing metrics** — backend returns `pnl_dollars`/`pnl_pct` but frontend read `pnl`/`return_pct`. Fixed with fallback pattern: `result.pnl_dollars ?? result.pnl`.
+- 🐛 **Saved simulations widget blank** — Same field name mismatch: `s.pnl_dollars ?? s.pnl`, `s.pnl_pct ?? s.return_pct`, `s.entry_value || s.invested || s.amount`.
+
+**Feature fixes:**
+- 🐛 **Options scan button not working** — `refetch()` only re-runs query with cached URL; backend requires `refresh=true` to trigger fresh scan. Rewrote to use manual `handleScan()` function with `get(/api/discover/options-flow?source=${source}&refresh=true)` + `queryClient.invalidateQueries()`.
+- 🐛 **Government type badges all green** — Backend returns `"Sell"` but frontend checked `.includes('sale')`. Changed to regex: `/sell|sale/i.test(...)`.
+
+**UX improvements:**
+- 🐛 **Chart tooltip fixed position** — OHLCV tooltip was pinned to top-left corner (`top: 8, left: 8`). Now follows cursor using `param.point` coordinates, flips to left side near right edge, with border + shadow for better visibility.
+
+### Files Changed (Sessions 10–11):
+
+| File | Changes |
+|------|---------|
+| `frontend-react/src/components/stock/EarningsWidget.jsx` | Created — upcoming earnings with warning styling |
+| `frontend-react/src/components/stock/TradeCalculatorWidget.jsx` | `createSeriesMarkers` import + v5 API fix, field name mapping |
+| `frontend-react/src/components/stock/SavedSimulationsWidget.jsx` | Field name fallback mapping |
+| `frontend-react/src/components/stock/StockPriceChart.jsx` | Cursor-following tooltip with edge detection |
+| `frontend-react/src/pages/DiscoverPage.jsx` | All 5 tabs restyled, Options scan fix, Government badge fix |
+| `frontend-react/src/pages/SettingsPage.jsx` | Grid → vertical stack layout |
+| `frontend-react/src/styles/styles.css` | ~100 lines: search-fab, indicator bars, sentiment gauge |
+
+### Testing Notes:
+
+- ✅ Build: 191 modules, no errors (358ms)
+- ✅ Tests: 43/43 passing
+- ✅ Cache busting confirmed — `index.html` served with `Cache-Control: no-store`, JS/CSS assets use content-hash filenames
+
+### Next Steps:
+
+- [ ] Continue manual testing — some styling gaps may remain across pages
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support
 - [ ] Alert notifications
@@ -1225,4 +1290,4 @@ All 7 phases of the migration plan executed:
 
 ### Next Session Prompt:
 
-> React + Vite migration complete (7 phases per `docs/dev/Migration-Plan.md`). Two rounds of post-migration bug fixes applied: WidgetGrid rendering, Paper Trading API paths, lightweight-charts v5 API, formatter crashes, CSS class alignment (~200 lines added), Matchmaker restyled with mini candlestick chart, Screener visibility, stock detail grid heights, cache-busting headers. Build: 191 modules, 43 tests passing. Source at `frontend-react/`, build at `frontend-build/`, original `frontend/` preserved. Some styling gaps may remain — continue manual testing.
+> React + Vite migration complete. Four rounds of post-migration bug fixes across Sessions 8–11. Key v5 API pattern: `chart.addSeries(SeriesType, opts)` and `createSeriesMarkers(series, markers)`. Backend field names: `pnl_dollars`/`pnl_pct` (not `pnl`/`return_pct`). Trade types from backend: `"Buy"`/`"Sell"` (not "Sale"/"Purchase"). Options scan requires `refresh=true` query param. Cache busting in place (`no-store` on index.html, content-hash filenames on assets). Build: 191 modules, 43 tests. Some pages may still have styling gaps — continue manual testing. Source at `frontend-react/`, build at `frontend-build/`.

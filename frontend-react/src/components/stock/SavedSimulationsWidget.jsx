@@ -24,18 +24,22 @@ export default function SavedSimulationsWidget({ symbol }) {
         <table className="signals-table" style={{ fontSize: '0.8rem' }}>
           <thead><tr><th>Buy</th><th>Sell</th><th>Entry</th><th>Exit</th><th>Invested</th><th>P&L</th><th>Return</th><th>Days</th></tr></thead>
           <tbody>
-            {pageItems.map((s, i) => (
-              <tr key={i}>
-                <td>{s.entry_date}</td>
-                <td>{s.exit_date}</td>
-                <td className="text-mono">{formatPrice(s.entry_price)}</td>
-                <td className="text-mono">{formatPrice(s.exit_price)}</td>
-                <td className="text-mono">{formatPrice(s.invested || s.amount)}</td>
-                <td className={`text-mono ${s.pnl >= 0 ? 'text-green' : 'text-red'}`}>{s.pnl >= 0 ? '+' : ''}{formatPrice(s.pnl)}</td>
-                <td className={`text-mono ${s.return_pct >= 0 ? 'text-green' : 'text-red'}`}>{formatChange(s.return_pct)}</td>
-                <td>{s.days_held}</td>
-              </tr>
-            ))}
+            {pageItems.map((s, i) => {
+              const pnl = s.pnl_dollars ?? s.pnl ?? 0;
+              const retPct = s.pnl_pct ?? s.return_pct ?? 0;
+              return (
+                <tr key={i}>
+                  <td>{s.entry_date}</td>
+                  <td>{s.exit_date}</td>
+                  <td className="text-mono">{formatPrice(s.entry_price)}</td>
+                  <td className="text-mono">{formatPrice(s.exit_price)}</td>
+                  <td className="text-mono">{formatPrice(s.entry_value || s.invested || s.amount)}</td>
+                  <td className={`text-mono ${pnl >= 0 ? 'text-green' : 'text-red'}`}>{pnl >= 0 ? '+' : ''}{formatPrice(pnl)}</td>
+                  <td className={`text-mono ${retPct >= 0 ? 'text-green' : 'text-red'}`}>{formatChange(retPct)}</td>
+                  <td>{s.days_held}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

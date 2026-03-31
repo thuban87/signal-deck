@@ -4,7 +4,7 @@ import { post } from '../../api/client';
 import { formatPrice } from '../../utils/formatters';
 import { calculateAnnualizedReturn } from '../../utils/calculations';
 import { useAppStore } from '../../stores/appStore';
-import { createChart } from 'lightweight-charts';
+import { createChart, CandlestickSeries, createSeriesMarkers } from 'lightweight-charts';
 import useLocalStorage from '../../hooks/useLocalStorage';
 
 export default function TradeCalculatorWidget({ symbol, entryDate, exitDate, onEntryDate, onExitDate }) {
@@ -56,7 +56,7 @@ export default function TradeCalculatorWidget({ symbol, entryDate, exitDate, onE
     });
     chartRef.current = chart;
 
-    const series = chart.addCandlestickSeries({
+    const series = chart.addSeries(CandlestickSeries, {
       upColor: '#00d4aa', downColor: '#ff4757',
       borderUpColor: '#00d4aa', borderDownColor: '#ff4757',
       wickUpColor: '#00d4aa', wickDownColor: '#ff4757',
@@ -65,9 +65,9 @@ export default function TradeCalculatorWidget({ symbol, entryDate, exitDate, onE
 
     // Add markers
     const markers = [];
-    if (data.entry_date) markers.push({ time: data.entry_date, position: 'belowBar', color: '#00d4aa', shape: 'arrowUp', text: 'BUY' });
-    if (data.exit_date) markers.push({ time: data.exit_date, position: 'aboveBar', color: '#ff4757', shape: 'arrowDown', text: 'SELL' });
-    if (markers.length) series.setMarkers(markers);
+    if (data.actual_entry_date || data.entry_date) markers.push({ time: data.actual_entry_date || data.entry_date, position: 'belowBar', color: '#00d4aa', shape: 'arrowUp', text: 'BUY' });
+    if (data.actual_exit_date || data.exit_date) markers.push({ time: data.actual_exit_date || data.exit_date, position: 'aboveBar', color: '#ff4757', shape: 'arrowDown', text: 'SELL' });
+    if (markers.length) createSeriesMarkers(series, markers);
     chart.timeScale().fitContent();
   };
 
@@ -75,7 +75,9 @@ export default function TradeCalculatorWidget({ symbol, entryDate, exitDate, onE
     return () => { if (chartRef.current) { chartRef.current.remove(); chartRef.current = null; } };
   }, []);
 
-  const annualized = result ? calculateAnnualizedReturn(result.return_pct, result.days_held) : null;
+  const pnl = result?.pnl_dollars ?? result?.pnl ?? null;
+  const returnPct = result?.pnl_pct ?? result?.return_pct ?? null;
+  const annualized = result?.annualized_return ?? (returnPct != null ? calculateAnnualizedReturn(returnPct, result.days_held) : null);
 
   return (
     <div>
@@ -105,8 +107,8 @@ export default function TradeCalculatorWidget({ symbol, entryDate, exitDate, onE
             ['Entry', formatPrice(result.entry_price)],
             ['Exit', formatPrice(result.exit_price)],
             ['Shares', result.shares?.toFixed(2)],
-            ['P&L', <span className={result.pnl >= 0 ? 'text-green' : 'text-red'}>{result.pnl >= 0 ? '+' : ''}{formatPrice(result.pnl)}</span>],
-            ['Return', <span className={result.return_pct >= 0 ? 'text-green' : 'text-red'}>{result.return_pct >= 0 ? '+' : ''}{result.return_pct?.toFixed(2)}%</span>],
+            ['P&L', <span key="pnl" className={pnl >= 0 ? 'text-green' : 'text-red'}>{pnl >= 0 ? '+' : ''}{formatPrice(pnl)}</span>],
+            ['Return', <span key="ret" className={returnPct >= 0 ? 'text-green' : 'text-red'}>{returnPct >= 0 ? '+' : ''}{returnPct?.toFixed(2)}%</span>],
             ['Days', result.days_held],
             ['Annualized', annualized != null ? `${annualized >= 0 ? '+' : ''}${annualized.toFixed(1)}%` : '\u2014'],
           ].map(([label, value]) => (

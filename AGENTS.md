@@ -274,7 +274,7 @@ Both the **Dashboard** and **Stock Detail** pages use **react-grid-layout v2.2.3
 - **16 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Macro Events, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
 - **Edit mode:** same UX as dashboard — "Customize" button with drag/resize handles
 - **Global layout:** saved to `localStorage` keys `sd_stock_detail_layout` / `sd_stock_detail_layout_mobile` (shared across all symbols, separate per device)
-- **Chart hover tooltip:** OHLCV values displayed on crosshair move
+- **Chart hover tooltip:** OHLCV values displayed as floating window that follows cursor (flips sides near chart edge)
 - **Company name:** displayed in header below symbol, populated from fundamentals API
 - **Related Stocks:** Finnhub peers API with daily % change and clickable links
 - **Insider Trading:** light copy from Investigator — summary bar + paginated table (5 at a time)
@@ -469,6 +469,7 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Alpha Vantage API integration
 - [x] Sidebar reorder (logical flow: Dashboard → Discover → ... → Performance → Settings)
 - [x] **React + Vite migration** — React 19, Vite 8, TanStack Query v5, Zustand, react-grid-layout, lightweight-charts v5 (see `docs/dev/Migration-Plan.md`)
+- [x] Post-migration bug fixes — lightweight-charts v5 API (`addSeries`, `createSeriesMarkers`), formatter crash guards, CSS class alignment, field name mapping, cache busting
 - [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)

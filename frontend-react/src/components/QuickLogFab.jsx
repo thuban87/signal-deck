@@ -1,12 +1,19 @@
-import { useState, useRef, useEffect } from 'react';
-import { post } from '../api/client';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { post, get } from '../api/client';
 import { useAppStore } from '../stores/appStore';
 
 export default function QuickLogFab() {
+  const navigate = useNavigate();
   const [panelOpen, setPanelOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const inputRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const searchTimer = useRef(null);
   const addToast = useAppStore((s) => s.addToast);
 
   useEffect(() => {
@@ -14,6 +21,30 @@ export default function QuickLogFab() {
       setTimeout(() => inputRef.current.focus(), 100);
     }
   }, [panelOpen]);
+
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current.focus(), 100);
+    }
+  }, [searchOpen]);
+
+  const doSearch = useCallback((q) => {
+    if (!q.trim()) { setSearchResults([]); return; }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const data = await get(`/api/symbols/search?q=${encodeURIComponent(q)}&limit=8`);
+        setSearchResults(data || []);
+      } catch { setSearchResults([]); }
+    }, 250);
+  }, []);
+
+  const navigateToStock = useCallback((sym) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    navigate(`/stock/${sym.toUpperCase()}`);
+  }, [navigate]);
 
   const handleSubmit = async () => {
     const raw = input.trim();
@@ -46,11 +77,70 @@ export default function QuickLogFab() {
 
   return (
     <>
+      {/* Search FAB */}
+      <div
+        className="search-fab"
+        title="Search for a stock"
+        onClick={() => {
+          setSearchOpen(!searchOpen);
+          setPanelOpen(false);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      </div>
+      {searchOpen && (
+        <div className="quick-log-panel search-panel">
+          <div className="quick-log-header">
+            <span>🔍 Search Stock</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSearchOpen(false)}>
+              &times;
+            </button>
+          </div>
+          <div className="quick-log-body">
+            <input
+              ref={searchInputRef}
+              type="text"
+              className="quick-log-input"
+              placeholder='Ticker or company name… e.g. "AAPL" or "Apple"'
+              autoComplete="off"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value.toUpperCase()); doSearch(e.target.value); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim()) {
+                  navigateToStock(searchQuery.trim());
+                }
+              }}
+            />
+            {searchResults.length > 0 && (
+              <div className="search-results-list">
+                {searchResults.map((r) => (
+                  <div
+                    key={r.symbol}
+                    className="search-result-item"
+                    onClick={() => navigateToStock(r.symbol)}
+                  >
+                    <strong>{r.symbol}</strong>
+                    <span className="text-muted" style={{ marginLeft: 8, fontSize: '0.8rem' }}>{r.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Log FAB */}
       <div
         className="quick-log-fab"
         title="Quick-log a ticker idea"
         onClick={() => {
           setPanelOpen(!panelOpen);
+          setSearchOpen(false);
           setFeedback(null);
           setInput('');
         }}

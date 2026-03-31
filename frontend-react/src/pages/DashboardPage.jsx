@@ -67,6 +67,12 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={handleRefresh}>Refresh</button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Symbol</button>
+          <button className="btn btn-ghost btn-sm" onClick={toggleEditMode}>
+            {editMode ? '✓ Done' : '⚙ Customize'}
+          </button>
+          {editMode && (
+            <button className="btn btn-ghost btn-sm" onClick={resetLayout}>Reset Layout</button>
+          )}
         </div>
       </div>
 
@@ -75,8 +81,6 @@ export default function DashboardPage() {
         layout={layout}
         onLayoutChange={onLayoutChange}
         editMode={editMode}
-        onToggleEdit={toggleEditMode}
-        onReset={resetLayout}
       />
 
       <AddSymbolModal open={showAdd} onClose={() => { setShowAdd(false); queryClient.invalidateQueries({ queryKey: ['watchlist'] }); }} />

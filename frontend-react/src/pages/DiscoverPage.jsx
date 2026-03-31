@@ -104,7 +104,7 @@ function MatchmakerTab() {
   ];
 
   return (
-    <div>
+    <div style={{ maxWidth: 520, margin: '0 auto' }}>
       {/* Source Selection */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
         {allSources.map(s => (
@@ -257,14 +257,18 @@ function GovernmentTab() {
           {data.summary?.popular_tickers?.length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
               <h3 style={{ margin: '0 0 0.75rem' }}>Most Traded by Politicians</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
                 {data.summary.popular_tickers.slice(0, 10).map(t => (
-                  <div key={t.ticker} className="card" style={{ padding: '0.75rem', cursor: 'pointer', textAlign: 'center' }} onClick={() => navigate(`/stock/${t.ticker}`)}>
-                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{t.ticker}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      <span style={{ color: 'var(--bullish)' }}>{t.buy_count}B</span> / <span style={{ color: 'var(--bearish)' }}>{t.sell_count}S</span> · {t.politician_count} pols
+                  <div key={t.ticker} className="card" style={{ padding: '1rem', cursor: 'pointer', textAlign: 'center', borderTop: '3px solid var(--blue)' }} onClick={() => navigate(`/stock/${t.ticker}`)}>
+                    <div style={{ fontWeight: 700, fontSize: '1.2rem', marginBottom: '0.35rem' }}>{t.ticker}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                      <span style={{ color: 'var(--green)' }}>{t.buy_count} {t.buy_count === 1 ? 'buy' : 'buys'}</span>
+                      {' · '}
+                      <span style={{ color: 'var(--red)' }}>{t.sell_count} {t.sell_count === 1 ? 'sell' : 'sells'}</span>
+                      <br />
+                      <span>{t.politician_count} politician{t.politician_count !== 1 ? 's' : ''}</span>
                     </div>
-                    {t.parties && <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center', marginTop: '0.25rem' }}>{t.parties.map(p => <span key={p}>{partyBadge(p)}</span>)}</div>}
+                    {t.parties && <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center', marginTop: '0.4rem' }}>{t.parties.map(p => <span key={p}>{partyBadge(p)}</span>)}</div>}
                   </div>
                 ))}
               </div>
@@ -277,16 +281,19 @@ function GovernmentTab() {
             <table className="data-table" style={{ width: '100%' }}>
               <thead><tr><th>Date</th><th>Politician</th><th>Party</th><th>Ticker</th><th>Type</th><th>Amount</th></tr></thead>
               <tbody>
-                {data.trades.slice(0, 100).map((t, i) => (
-                  <tr key={i}>
-                    <td>{t.trade_date || t.disclosure_date}</td>
-                    <td>{t.politician} <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>({t.chamber})</span></td>
-                    <td>{partyBadge(t.party)}</td>
-                    <td style={{ fontWeight: 600, cursor: 'pointer', color: 'var(--accent)' }} onClick={() => navigate(`/stock/${t.ticker}`)}>{t.ticker}</td>
-                    <td><span className={`badge badge-${(t.trade_type || '').toLowerCase().includes('sale') ? 'bearish' : 'bullish'}`}>{t.trade_type}</span></td>
-                    <td style={{ fontSize: '0.8rem' }}>{t.amount_range}</td>
-                  </tr>
-                ))}
+                {data.trades.slice(0, 100).map((t, i) => {
+                  const isSale = /sell|sale/i.test(t.trade_type || '');
+                  return (
+                    <tr key={i} style={{ borderLeft: `3px solid ${isSale ? 'var(--red)' : 'var(--green)'}` }}>
+                      <td>{t.trade_date || t.disclosure_date}</td>
+                      <td>{t.politician} <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>({t.chamber})</span></td>
+                      <td>{partyBadge(t.party)}</td>
+                      <td style={{ fontWeight: 600, cursor: 'pointer', color: 'var(--accent)' }} onClick={() => navigate(`/stock/${t.ticker}`)}>{t.ticker}</td>
+                      <td><span className={`badge badge-${isSale ? 'bearish' : 'bullish'}`} style={{ color: isSale ? 'var(--red)' : 'var(--green)' }}>{t.trade_type}</span></td>
+                      <td style={{ fontSize: '0.8rem' }}>{t.amount_range}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -311,13 +318,16 @@ function InsiderTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-        <select className="input" value={minValue} onChange={e => setMinValue(e.target.value)} style={{ width: 'auto' }}>
-          <option value="100000">$100K+</option>
-          <option value="500000">$500K+</option>
-          <option value="1000000">$1M+</option>
-        </select>
-        <button className="btn btn-primary btn-sm" onClick={() => refetch()}>🔍 Scan</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h3 style={{ margin: 0 }}>Market-Wide Insider Trading</h3>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <select className="input" value={minValue} onChange={e => setMinValue(e.target.value)} style={{ width: 'auto' }}>
+            <option value="100000">$100K+</option>
+            <option value="500000">$500K+</option>
+            <option value="1000000">$1M+</option>
+          </select>
+          <button className="btn btn-primary btn-sm" onClick={() => refetch()}>🔍 Scan</button>
+        </div>
       </div>
 
       {isLoading ? <LoadingSkeleton type="card" /> : !data?.summary?.tickers?.length ? (
@@ -329,19 +339,22 @@ function InsiderTab() {
             <span>Tickers: {data.summary.unique_tickers}</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-            {data.summary.tickers.slice(0, 30).map(t => (
-              <div key={t.ticker} className="card" style={{ padding: '1rem', cursor: 'pointer' }} onClick={() => navigate(`/stock/${t.ticker}`)}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontWeight: 700 }}>{t.ticker}</span>
-                  <span style={{ color: sigColor(t.signal), fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>{t.signal}</span>
+            {data.summary.tickers.slice(0, 30).map(t => {
+              const borderColor = t.signal === 'bullish' ? 'var(--green)' : t.signal === 'bearish' ? 'var(--red)' : 'var(--border)';
+              return (
+                <div key={t.ticker} className="card" style={{ padding: '1rem', cursor: 'pointer', borderLeft: `3px solid ${borderColor}` }} onClick={() => navigate(`/stock/${t.ticker}`)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ fontWeight: 700 }}>{t.ticker}</span>
+                    <span style={{ color: sigColor(t.signal), fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>{t.signal}</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <div>Buy: <span style={{ color: 'var(--green)' }}>{t.buy_count} ({formatNumber(t.total_buy_value)})</span></div>
+                    <div>Sell: <span style={{ color: 'var(--red)' }}>{t.sell_count} ({formatNumber(t.total_sell_value)})</span></div>
+                    <div>{t.insider_count} insiders · Latest: {t.latest_date}</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <div>Buy: <span style={{ color: 'var(--bullish)' }}>{t.buy_count} ({formatNumber(t.total_buy_value)})</span></div>
-                  <div>Sell: <span style={{ color: 'var(--bearish)' }}>{t.sell_count} ({formatNumber(t.total_sell_value)})</span></div>
-                  <div>{t.insider_count} insiders · Latest: {t.latest_date}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -422,31 +435,53 @@ function SocialTab() {
 function OptionsTab() {
   const navigate = useNavigate();
   const [source, setSource] = useState('watchlist');
+  const queryClient = useQueryClient();
+  const [scanning, setScanning] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['discover-options', source],
     queryFn: () => get(`/api/discover/options-flow?source=${source}`),
     staleTime: 5 * 60 * 1000,
   });
 
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      await get(`/api/discover/options-flow?source=${source}&refresh=true`);
+      queryClient.invalidateQueries({ queryKey: ['discover-options', source] });
+    } catch {}
+    setScanning(false);
+  };
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-        <select className="input" value={source} onChange={e => setSource(e.target.value)} style={{ width: 'auto' }}>
-          <option value="watchlist">Watchlist</option>
-          <option value="sp500">S&P 500</option>
-        </select>
-        <button className="btn btn-primary btn-sm" onClick={() => refetch()}>🔍 Scan</button>
-        {data?.last_updated && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Last: {data.last_updated}</span>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h3 style={{ margin: 0 }}>Unusual Options Activity</h3>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <select className="input" value={source} onChange={e => setSource(e.target.value)} style={{ width: 'auto' }}>
+            <option value="watchlist">Watchlist</option>
+            <option value="sp500">S&amp;P 500</option>
+          </select>
+          <button className="btn btn-primary btn-sm" onClick={handleScan} disabled={scanning}>{scanning ? 'Scanning...' : '🔍 Scan'}</button>
+          {data?.last_updated && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Last: {data.last_updated}</span>}
+        </div>
       </div>
 
       {isLoading ? <LoadingSkeleton type="table" /> : !data?.alerts?.length ? (
         <EmptyState icon="📊" title="No unusual activity" message="No options flow alerts found" />
       ) : (
-        <div className="card" style={{ padding: '1.5rem', overflowX: 'auto' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            {data.alerts.length} alerts · {new Set(data.alerts.map(a => a.ticker)).size} tickers
+        <>
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div className="card" style={{ padding: '0.75rem 1rem', textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)' }}>{data.alerts.length}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Alerts</div>
           </div>
+          <div className="card" style={{ padding: '0.75rem 1rem', textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)' }}>{new Set(data.alerts.map(a => a.ticker)).size}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tickers</div>
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ width: '100%' }}>
             <thead><tr><th>Ticker</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Volume</th><th>OI</th><th>Vol/OI</th><th>IV</th><th>Premium</th><th>Flags</th></tr></thead>
             <tbody>
@@ -467,6 +502,7 @@ function OptionsTab() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useCallback } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Sidebar from './components/Sidebar';
 import LoginPage from './components/LoginPage';
@@ -10,12 +10,17 @@ import ErrorBoundary from './components/ErrorBoundary';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const StockDetailPage = lazy(() => import('./pages/StockDetailPage'));
 const DiscoverPage = lazy(() => import('./pages/DiscoverPage'));
-const InvestigatorPage = lazy(() => import('./pages/InvestigatorPage'));
 const SignalsPage = lazy(() => import('./pages/SignalsPage'));
 const BacktestPage = lazy(() => import('./pages/BacktestPage'));
 const PaperTradingPage = lazy(() => import('./pages/PaperTradingPage'));
 const PerformancePage = lazy(() => import('./pages/PerformancePage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+
+function InvestigatorRedirect() {
+  const { symbol } = useParams();
+  if (symbol) return <Navigate to={`/stock/${symbol}`} replace />;
+  return <Navigate to="/dashboard" replace />;
+}
 
 function LoadingSkeleton() {
   return (
@@ -69,7 +74,7 @@ function AppLayout() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/stock/:symbol" element={<StockDetailPage />} />
               <Route path="/discover/:tab?" element={<DiscoverPage />} />
-              <Route path="/investigate/:symbol?" element={<InvestigatorPage />} />
+              <Route path="/investigate/:symbol?" element={<InvestigatorRedirect />} />
               <Route path="/signals" element={<SignalsPage />} />
               <Route path="/backtest/:symbol?" element={<BacktestPage />} />
               <Route path="/paper" element={<PaperTradingPage />} />

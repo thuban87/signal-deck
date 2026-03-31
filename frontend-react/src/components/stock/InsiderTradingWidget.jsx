@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../api/client';
 import { formatPrice } from '../../utils/formatters';
-import { Link } from 'react-router-dom';
 
 export default function InsiderTradingWidget({ symbol }) {
-  const [showCount, setShowCount] = useState(5);
+  const [showCount, setShowCount] = useState(10);
 
   const { data, isLoading } = useQuery({
     queryKey: ['insider', symbol],
@@ -29,7 +28,6 @@ export default function InsiderTradingWidget({ symbol }) {
           {summary.total_bought != null && <span className="text-green">Bought: ${(summary.total_bought / 1e6).toFixed(1)}M</span>}
           {summary.total_sold != null && <span className="text-red">Sold: ${(summary.total_sold / 1e6).toFixed(1)}M</span>}
         </div>
-        <Link to={`/investigate/${symbol}`} style={{ fontSize: '0.75rem' }}>Full Research &rarr;</Link>
       </div>
       {trades.length > 0 && (
         <>
