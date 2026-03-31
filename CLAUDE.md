@@ -402,6 +402,7 @@ Configurable account size and risk percentage inputs on each page.
 - **Finnhub rate limits** — free tier has 60 calls/min; investigator page batches requests
 - **Options flow weekend gap** — yfinance reports OI=0 outside market hours; scanner finds activity on weekday scans only
 - **Reddit API required** — Social momentum tab requires Reddit credentials (free at reddit.com/prefs/apps)
+- **No login rate limiting** — `/api/login` endpoint has no brute-force protection. Add `slowapi` or similar to `server.py` with a 5-attempts-per-minute limit before production deployment.
 
 ---
 
@@ -437,6 +438,8 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Performance Analytics page — 14 metrics, equity curve, win rate by tag, trade distribution
 - [x] Alpha Vantage API integration
 - [x] Sidebar reorder (logical flow: Dashboard → Discover → ... → Performance → Settings)
+- [ ] **React + Vite migration** — rewrite frontend as React SPA (see `docs/dev/Migration-Plan.md`)
+- [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)
 - [ ] Alert notifications (email/push when signals fire)
