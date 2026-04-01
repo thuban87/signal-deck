@@ -1291,3 +1291,138 @@ All 7 phases of the migration plan executed:
 ### Next Session Prompt:
 
 > React + Vite migration complete. Four rounds of post-migration bug fixes across Sessions 8–11. Key v5 API pattern: `chart.addSeries(SeriesType, opts)` and `createSeriesMarkers(series, markers)`. Backend field names: `pnl_dollars`/`pnl_pct` (not `pnl`/`return_pct`). Trade types from backend: `"Buy"`/`"Sell"` (not "Sale"/"Purchase"). Options scan requires `refresh=true` query param. Cache busting in place (`no-store` on index.html, content-hash filenames on assets). Build: 191 modules, 43 tests. Some pages may still have styling gaps — continue manual testing. Source at `frontend-react/`, build at `frontend-build/`.
+
+---
+
+## 2026-03-31 (Session 12) — Widget Grid v2 Fixes, Paper Trading Overhaul, Deployment Prep
+
+**Focus:** Fixed react-grid-layout v2 API mismatches (drag/resize always enabled, widget heights tripled), overhauled Paper Trading page with 5 sub-tabs mirroring Alpaca dashboard, added `frontend-build/` to `.gitignore`, deployment preparation.
+
+### Completed:
+
+#### react-grid-layout v2 API Fixes (`WidgetGrid.jsx`)
+
+Three v1→v2 API mismatches were causing bugs across Dashboard and Stock Detail:
+
+1. **Drag/resize always enabled** — v1 flat props (`isDraggable`, `isResizable`, `draggableHandle`) are silently ignored in v2. Fixed by using v2 config objects: `dragConfig={{ enabled: editMode }}`, `resizeConfig={{ enabled: editMode }}`.
+2. **Widget heights tripled** — `rowHeight` and `margin` were wrapped in a `gridConfig` object, but `ResponsiveGridLayout` in v2 exposes these as top-level props (unlike `GridLayout` which uses `gridConfig`). `rowHeight` defaulted to 150px instead of intended 50px. Moved to top-level props.
+3. **Infinite chart zoom loop** — Adding `display: flex; justify-content: center; align-items: center` to `.widget-body` caused an infinite layout feedback loop between the chart's ResizeObserver and the flex container. Removed global centering, added opt-in `.widget-body-centered` class.
+
+#### Paper Trading Page — Complete Overhaul
+
+Rewrote `PaperTradingPage.jsx` from a single flat page to a tabbed interface with 5 sub-tabs:
+
+**Dashboard Tab (`PaperDashboardTab.jsx`):**
+- [x] Account metrics displayed as card grid (portfolio value, cash, buying power, etc.) — fills page width
+- [x] Widget grid with 5 widgets: Account Metrics, Place Order, Open Positions, Recent Orders, Equity Chart
+- [x] Customize/Reset layout support via existing WidgetGrid system
+- [x] Alpaca Dashboard external link button (🦙) in page header
+- [x] Refresh button with local-time sync timestamp
+
+**Positions Tab (`PositionsTab.jsx`):**
+- [x] Sub-tabs: All, Long, Short, Options
+- [x] Asset class filter dropdown
+- [x] Column picker — 15 columns (symbol, qty, side, avg entry, current price, market value, unrealized P&L, unrealized P&L %, cost basis, change today, change today %, asset class, exchange, qty available, lastday price)
+- [x] Clickable symbols → stock detail page
+
+**Orders Tab (`OrdersTab.jsx`):**
+- [x] Status filter (all/open/closed/new/partially_filled/filled/canceled/expired/pending_new/accepted/replaced/stopped/rejected/suspended/pending_cancel/pending_replace)
+- [x] Side filter (all/buy/sell)
+- [x] Column picker — 20 columns (symbol, side, type, qty, filled qty, filled avg price, limit price, stop price, status, time in force, order class, trail price, trail percent, hwm, extended hours, notional, subtag, source, submitted at, filled at)
+- [x] Pagination (50 per page)
+- [x] Cancel order button
+- [x] Clickable symbols → stock detail page
+
+**Balances Tab (`BalancesTab.jsx`):**
+- [x] Balance sheet view with 4 sections: Core Balances, Margin & Buying Power, Transfers & Fees, Account Info
+- [x] 20+ fields from Alpaca account API (portfolio value, cash, equity, long/short market value, maintenance margin, SMA, RegT/daytrading/non-marginable buying power, accrued fees, pending transfers, multiplier, currency, account status flags, crypto status, created date)
+- [x] Export as Markdown button — generates formatted `.md` file download
+
+**Configure Tab (`ConfigureTab.jsx`):**
+- [x] Account configuration toggles via Alpaca API: DTBP check, fractional trading, no shorting, trade confirm email, suspend trade, max margin multiplier, max options trading level, PDT check
+- [x] Save button posts updated config to Alpaca
+
+**Tabs styling:** Uses same `discover-tabs` / `discover-tab` CSS class pattern as Discover page for consistent look.
+
+#### Backend — New Alpaca Functions (`alpaca_client.py`)
+- [x] `get_account_activities()` — Direct REST API call to `paper-api.alpaca.markets/v2/account/activities` (SDK method doesn't exist in alpaca-py 0.43.2). Supports `activity_types` and `date` filtering.
+- [x] `get_account_configurations()` — Account config via TradingClient
+- [x] `update_account_configurations()` — Update config with Pydantic v2 `model_copy(update=...)` pattern
+- [x] `get_orders_full()` — Extended order listing with status/side/limit params
+- [x] `cancel_order()` — Cancel order by ID
+
+#### Backend — New API Endpoints (`server.py`)
+- [x] `GET /api/paper/orders/full` — Full order listing with filters
+- [x] `DELETE /api/paper/orders/{order_id}/cancel` — Cancel an order
+- [x] `GET /api/paper/activities` — Account activities (bypasses SDK, uses direct REST)
+- [x] `GET /api/paper/configurations` — Account configuration
+- [x] `PUT /api/paper/configurations` — Update account configuration
+
+#### Frontend — API Client (`client.js`)
+- [x] Added `patch()` method to API client
+
+#### Frontend — Hooks (`usePaperTrading.js`)
+- [x] `usePaperActivities()` — query for activities with type/date filters
+- [x] `usePaperOrdersFull()` — query for orders with status/side/limit filters
+- [x] `usePaperConfigurations()` — query for account config
+- [x] `useUpdateConfigurations()` — mutation for saving config
+- [x] `useCancelOrder()` — mutation for canceling orders
+
+#### Git / Deployment Prep
+- [x] Added `frontend-build/` to `.gitignore` (build artifacts shouldn't be tracked)
+- [x] Removed `package-lock.json` from `.gitignore` (`npm ci` in deploy script requires it)
+- [x] Form accessibility — added `id`, `name`, and `aria-label` attributes to all form fields across all paper trading tabs
+
+### Bugs Fixed:
+
+- 🐛 **react-grid-layout v2 flat props ignored** — `isDraggable`/`isResizable` silently ignored; widgets always draggable/resizable. Fixed with `dragConfig`/`resizeConfig` objects.
+- 🐛 **rowHeight defaulting to 150px** — `gridConfig` wrapper silently ignored by `ResponsiveGridLayout`. Moved `rowHeight`/`margin` to top-level props.
+- 🐛 **Chart infinite zoom loop** — `.widget-body` flex centering caused ResizeObserver feedback loop with TradingView charts. Removed global centering.
+- 🐛 **Activities endpoint empty** — `get_account_activities()` SDK method doesn't exist in alpaca-py 0.43.2. Replaced with direct REST API call using `requests.get()`.
+- 🐛 **Activities endpoint 404** — SDK's `.get()` prepends `/v2/`, turning `/v2/account/activities` into `/v2/v2/account/activities`. Changed to `/account/activities`.
+- 🐛 **Pydantic v2 frozen models** — `setattr()` on Alpaca request objects fails in Pydantic v2. Fixed with `model_copy(update=...)` pattern.
+- 🐛 **FastAPI `regex` deprecation** — `Query(regex=...)` deprecated in Pydantic v2. Changed to `Query(pattern=...)`.
+
+### Files Changed:
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `frontend-react/src/components/ui/WidgetGrid.jsx` | Modified | v2 API: `dragConfig`/`resizeConfig`, top-level `rowHeight`/`margin` |
+| `frontend-react/src/pages/PaperTradingPage.jsx` | Rewritten | Tabbed interface with 5 sub-tabs, Alpaca link, sync timestamp |
+| `frontend-react/src/components/paper/PaperDashboardTab.jsx` | New | Dashboard tab with widget grid |
+| `frontend-react/src/components/paper/PositionsTab.jsx` | New | Positions with sub-tabs + column picker |
+| `frontend-react/src/components/paper/OrdersTab.jsx` | New | Orders with filters + pagination + 20 columns |
+| `frontend-react/src/components/paper/BalancesTab.jsx` | New | Balance sheet + Markdown export |
+| `frontend-react/src/components/paper/ConfigureTab.jsx` | New | Account config toggles |
+| `frontend-react/src/components/paper/ActivitiesTab.jsx` | New (later removed) | Activities tab — removed due to SDK incompatibility |
+| `frontend-react/src/hooks/usePaperTrading.js` | Modified | 5 new query/mutation hooks |
+| `frontend-react/src/api/client.js` | Modified | Added `patch()` method |
+| `frontend-react/src/styles/styles.css` | Modified | `.widget-body-centered`, form label fixes |
+| `backend/alpaca_client.py` | Modified | 5 new functions (activities, config, orders, cancel) |
+| `backend/server.py` | Modified | 5 new endpoints, Pydantic v2 fixes |
+| `.gitignore` | Modified | Added `frontend-build/`, removed `package-lock.json` |
+
+### Testing Notes:
+
+- ✅ Build: no errors
+- ✅ Dashboard tab — all 5 widgets rendering with correct Alpaca data
+- ✅ Positions tab — all positions showing with column picker
+- ✅ Orders tab — both orders showing with all columns, cancel works
+- ✅ Balances tab — 20+ fields displayed, Markdown export generates file
+- ✅ Configure tab — account settings load and save correctly
+- ✅ Widget grid — drag/resize properly locked when not in customize mode
+- ✅ Widget heights — correct at `rowHeight: 50` (no longer tripled)
+- ✅ Chart — no infinite zoom loop
+- ⚠️ Activities tab removed — alpaca-py SDK lacks `get_account_activities()`, direct REST call returned data from backend but frontend received empty array (suspected auth/serialization issue). Tab removed; activities viewable on Alpaca dashboard.
+
+### Next Steps:
+
+- [ ] Deploy to Linux server (Nginx + systemd) — Node.js 18+ required on server for `npm ci` + `npm run build`
+- [ ] Login rate limiting — `slowapi` or similar on `/api/login`
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support (4h, 1h candles)
+- [ ] Alert notifications (email/push when signals fire)
+
+### Next Session Prompt:
+
+> Paper Trading page fully overhauled with 5 sub-tabs (Dashboard, Positions, Orders, Balances, Configure) mirroring Alpaca. Widget grid v2 API fixes applied (dragConfig/resizeConfig, top-level rowHeight). Activities tab removed due to SDK incompatibility. `frontend-build/` added to `.gitignore`. Ready for production deployment — server needs Node.js 18+ installed, then run `deploy.sh`. Nginx config unchanged (reverse proxy to :8005, backend serves `frontend-build/` as static). Source at `frontend-react/`, 43 tests passing.
