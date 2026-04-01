@@ -43,6 +43,10 @@ export function put(endpoint, body) {
   return api(endpoint, { method: 'PUT', body: JSON.stringify(body) });
 }
 
+export function patch(endpoint, body) {
+  return api(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
+}
+
 export function del(endpoint) {
   return api(endpoint, { method: 'DELETE' });
 }

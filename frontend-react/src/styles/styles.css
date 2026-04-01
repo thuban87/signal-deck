@@ -4216,6 +4216,18 @@ a.quick-log-resolved.ql-stock-link:hover {
     flex: 1;
     overflow: auto;
     padding: 0 12px 12px;
+    min-height: 0;
+}
+
+.widget-body-centered {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.widget-body-centered > * {
+    width: 100%;
 }
 
 .widget-grid.edit-mode .widget-wrapper {

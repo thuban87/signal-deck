@@ -50,7 +50,7 @@ export default function WidgetGrid({
           rowHeight={rowHeight}
           margin={[8, 8]}
           width={width}
-          dragConfig={{ enabled: editMode, handle: '.widget-header' }}
+          dragConfig={{ enabled: editMode }}
           resizeConfig={{ enabled: editMode }}
           onLayoutChange={handleLayoutChange}
         >

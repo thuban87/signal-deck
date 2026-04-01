@@ -260,8 +260,24 @@ def get_account() -> dict | None:
             "long_market_value": float(acct.long_market_value),
             "short_market_value": float(acct.short_market_value),
             "initial_margin": float(acct.initial_margin),
+            "maintenance_margin": float(acct.maintenance_margin) if hasattr(acct, "maintenance_margin") and acct.maintenance_margin else 0,
+            "sma": float(acct.sma) if hasattr(acct, "sma") and acct.sma else 0,
+            "regt_buying_power": float(acct.regt_buying_power) if hasattr(acct, "regt_buying_power") and acct.regt_buying_power else 0,
+            "daytrading_buying_power": float(acct.daytrading_buying_power) if hasattr(acct, "daytrading_buying_power") and acct.daytrading_buying_power else 0,
+            "non_marginable_buying_power": float(acct.non_marginable_buying_power) if hasattr(acct, "non_marginable_buying_power") and acct.non_marginable_buying_power else 0,
+            "accrued_fees": float(acct.accrued_fees) if hasattr(acct, "accrued_fees") and acct.accrued_fees else 0,
+            "pending_transfer_in": float(acct.pending_transfer_in) if hasattr(acct, "pending_transfer_in") and acct.pending_transfer_in else 0,
+            "pending_transfer_out": float(acct.pending_transfer_out) if hasattr(acct, "pending_transfer_out") and acct.pending_transfer_out else 0,
+            "multiplier": str(acct.multiplier) if hasattr(acct, "multiplier") and acct.multiplier else "1",
+            "currency": str(acct.currency) if hasattr(acct, "currency") and acct.currency else "USD",
+            "trading_blocked": acct.trading_blocked if hasattr(acct, "trading_blocked") else False,
+            "transfers_blocked": acct.transfers_blocked if hasattr(acct, "transfers_blocked") else False,
+            "account_blocked": acct.account_blocked if hasattr(acct, "account_blocked") else False,
+            "shorting_enabled": acct.shorting_enabled if hasattr(acct, "shorting_enabled") else False,
+            "crypto_status": str(acct.crypto_status) if hasattr(acct, "crypto_status") and acct.crypto_status else None,
             "daytrade_count": acct.daytrade_count,
             "pattern_day_trader": acct.pattern_day_trader,
+            "created_at": str(acct.created_at) if hasattr(acct, "created_at") and acct.created_at else None,
         }
     except Exception as e:
         print(f"[Alpaca] get_account failed: {e}")
@@ -588,3 +604,255 @@ def search_assets(query: str, limit: int = 10) -> list[dict]:
 
     results = prefix_matches + contains_matches
     return results[:limit]
+
+
+# ---------------------------------------------------------------------------
+# Account Activities
+# ---------------------------------------------------------------------------
+
+def get_account_activities(
+    activity_type: str | None = None,
+    date: str | None = None,
+    after: str | None = None,
+    until: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    """Get account activities (fills, dividends, etc.) from Alpaca via raw REST API.
+
+    alpaca-py 0.43.x does not expose get_account_activities on TradingClient,
+    so we use the generic .get() helper which hits /v2/account/activities.
+    """
+    if not (_alpaca_available and _trading_client):
+        return []
+    try:
+        import requests as _req
+        from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
+
+        base_url = "https://paper-api.alpaca.markets"
+        path = "/v2/account/activities"
+        if activity_type:
+            path = f"/v2/account/activities/{activity_type}"
+
+        params = {}
+        if date:
+            params["date"] = date
+        if after:
+            params["after"] = after
+        if until:
+            params["until"] = until
+        params["page_size"] = str(limit)
+
+        headers = {
+            "APCA-API-KEY-ID": ALPACA_API_KEY,
+            "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
+        }
+        resp = _req.get(f"{base_url}{path}", headers=headers, params=params, timeout=10)
+        resp.raise_for_status()
+        raw = resp.json()
+
+        if not raw:
+            return []
+
+        # raw is already a list of dicts (or a single dict)
+        items = raw if isinstance(raw, list) else [raw]
+        result = []
+        for a in items[:limit]:
+            if isinstance(a, dict):
+                item = {
+                    "id": a.get("id"),
+                    "activity_type": a.get("activity_type"),
+                    "date": a.get("date") or a.get("transaction_time", "")[:10],
+                    "symbol": a.get("symbol"),
+                    "qty": a.get("qty"),
+                    "price": a.get("price"),
+                    "side": a.get("side"),
+                    "net_amount": a.get("net_amount"),
+                    "per_share_amount": a.get("per_share_amount"),
+                    "description": a.get("description"),
+                    "status": a.get("status"),
+                    "transaction_time": a.get("transaction_time"),
+                    "order_id": a.get("order_id"),
+                    "cum_qty": a.get("cum_qty"),
+                    "leaves_qty": a.get("leaves_qty"),
+                    "type": a.get("type"),
+                }
+            else:
+                # Pydantic model fallback
+                item = {
+                    "id": str(a.id) if hasattr(a, "id") else None,
+                    "activity_type": str(a.activity_type) if hasattr(a, "activity_type") else None,
+                    "date": str(a.date) if hasattr(a, "date") else None,
+                    "symbol": a.symbol if hasattr(a, "symbol") else None,
+                    "qty": str(a.qty) if hasattr(a, "qty") and a.qty else None,
+                    "price": str(a.price) if hasattr(a, "price") and a.price else None,
+                    "side": str(a.side) if hasattr(a, "side") and a.side else None,
+                    "net_amount": str(a.net_amount) if hasattr(a, "net_amount") and a.net_amount else None,
+                    "per_share_amount": str(a.per_share_amount) if hasattr(a, "per_share_amount") and a.per_share_amount else None,
+                    "description": a.description if hasattr(a, "description") else None,
+                    "status": str(a.status) if hasattr(a, "status") else None,
+                    "transaction_time": str(a.transaction_time) if hasattr(a, "transaction_time") and a.transaction_time else None,
+                    "order_id": str(a.order_id) if hasattr(a, "order_id") and a.order_id else None,
+                    "cum_qty": str(a.cum_qty) if hasattr(a, "cum_qty") and a.cum_qty else None,
+                    "leaves_qty": str(a.leaves_qty) if hasattr(a, "leaves_qty") and a.leaves_qty else None,
+                }
+            result.append(item)
+        return result
+    except Exception as e:
+        print(f"[Alpaca] get_account_activities failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Account Configurations
+# ---------------------------------------------------------------------------
+
+def get_account_configurations() -> dict | None:
+    """Get account configuration settings from Alpaca."""
+    if not (_alpaca_available and _trading_client):
+        return None
+    try:
+        config = _trading_client.get_account_configurations()
+        return {
+            "dtbp_check": str(config.dtbp_check) if config.dtbp_check else None,
+            "trade_confirm_email": str(config.trade_confirm_email) if config.trade_confirm_email else None,
+            "suspend_trade": config.suspend_trade,
+            "no_shorting": config.no_shorting,
+            "fractional_trading": config.fractional_trading,
+            "max_margin_multiplier": str(config.max_margin_multiplier) if config.max_margin_multiplier else None,
+            "max_options_trading_level": config.max_options_trading_level if hasattr(config, "max_options_trading_level") else None,
+            "pdt_check": str(config.pdt_check) if hasattr(config, "pdt_check") and config.pdt_check else None,
+            "ptp_no_exception_entry": config.ptp_no_exception_entry if hasattr(config, "ptp_no_exception_entry") else None,
+        }
+    except Exception as e:
+        print(f"[Alpaca] get_account_configurations failed: {e}")
+        return None
+
+
+def update_account_configurations(updates: dict) -> dict | None:
+    """Update account configuration settings on Alpaca."""
+    if not (_alpaca_available and _trading_client):
+        return None
+    try:
+        current = _trading_client.get_account_configurations()
+
+        # Build update dict from current config + changes
+        config_dict = {}
+        for attr in dir(current):
+            if not attr.startswith('_') and not callable(getattr(current, attr, None)):
+                config_dict[attr] = getattr(current, attr)
+        config_dict.update(updates)
+
+        # Try model_copy (Pydantic v2) then fallback to direct set
+        try:
+            updated = current.model_copy(update=updates)
+        except (AttributeError, TypeError):
+            updated = current
+            for key, value in updates.items():
+                try:
+                    setattr(updated, key, value)
+                except Exception:
+                    pass
+
+        result = _trading_client.set_account_configurations(updated)
+        return {
+            "dtbp_check": str(result.dtbp_check) if result.dtbp_check else None,
+            "trade_confirm_email": str(result.trade_confirm_email) if result.trade_confirm_email else None,
+            "suspend_trade": result.suspend_trade,
+            "no_shorting": result.no_shorting,
+            "fractional_trading": result.fractional_trading,
+            "max_margin_multiplier": str(result.max_margin_multiplier) if result.max_margin_multiplier else None,
+            "max_options_trading_level": result.max_options_trading_level if hasattr(result, "max_options_trading_level") else None,
+            "pdt_check": str(result.pdt_check) if hasattr(result, "pdt_check") and result.pdt_check else None,
+            "ptp_no_exception_entry": result.ptp_no_exception_entry if hasattr(result, "ptp_no_exception_entry") else None,
+        }
+    except Exception as e:
+        print(f"[Alpaca] update_account_configurations failed: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Enhanced Orders (full field set)
+# ---------------------------------------------------------------------------
+
+def get_orders_full(
+    status: str = "all",
+    limit: int = 50,
+    after: str | None = None,
+    until: str | None = None,
+    side: str | None = None,
+) -> list[dict]:
+    """Get detailed order history from Alpaca with all available fields."""
+    if not (_alpaca_available and _trading_client):
+        return []
+    try:
+        status_map = {
+            "open": QueryOrderStatus.OPEN,
+            "closed": QueryOrderStatus.CLOSED,
+            "all": QueryOrderStatus.ALL,
+        }
+        kwargs = {
+            "status": status_map.get(status, QueryOrderStatus.ALL),
+            "limit": limit,
+        }
+        if after:
+            kwargs["after"] = after
+        if until:
+            kwargs["until"] = until
+        if side:
+            kwargs["side"] = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+
+        req = GetOrdersRequest(**kwargs)
+        orders = _trading_client.get_orders(filter=req)
+        return [
+            {
+                "id": str(o.id),
+                "client_order_id": o.client_order_id,
+                "symbol": o.symbol,
+                "asset_id": str(o.asset_id) if o.asset_id else None,
+                "asset_class": str(o.asset_class) if o.asset_class else None,
+                "qty": str(o.qty) if o.qty else None,
+                "filled_qty": str(o.filled_qty) if o.filled_qty else None,
+                "notional": str(o.notional) if o.notional else None,
+                "side": str(o.side),
+                "type": str(o.type),
+                "order_class": str(o.order_class) if o.order_class else None,
+                "time_in_force": str(o.time_in_force),
+                "status": str(o.status),
+                "limit_price": str(o.limit_price) if o.limit_price else None,
+                "stop_price": str(o.stop_price) if o.stop_price else None,
+                "filled_avg_price": str(o.filled_avg_price) if o.filled_avg_price else None,
+                "extended_hours": o.extended_hours if hasattr(o, "extended_hours") else None,
+                "trail_percent": str(o.trail_percent) if hasattr(o, "trail_percent") and o.trail_percent else None,
+                "trail_price": str(o.trail_price) if hasattr(o, "trail_price") and o.trail_price else None,
+                "hwm": str(o.hwm) if hasattr(o, "hwm") and o.hwm else None,
+                "submitted_at": str(o.submitted_at) if o.submitted_at else None,
+                "filled_at": str(o.filled_at) if o.filled_at else None,
+                "expired_at": str(o.expired_at) if hasattr(o, "expired_at") and o.expired_at else None,
+                "canceled_at": str(o.canceled_at) if hasattr(o, "canceled_at") and o.canceled_at else None,
+                "failed_at": str(o.failed_at) if hasattr(o, "failed_at") and o.failed_at else None,
+                "replaced_at": str(o.replaced_at) if hasattr(o, "replaced_at") and o.replaced_at else None,
+                "replaced_by": str(o.replaced_by) if hasattr(o, "replaced_by") and o.replaced_by else None,
+                "replaces": str(o.replaces) if hasattr(o, "replaces") and o.replaces else None,
+                "created_at": str(o.created_at) if o.created_at else None,
+                "updated_at": str(o.updated_at) if hasattr(o, "updated_at") and o.updated_at else None,
+                "legs": [str(leg.id) for leg in o.legs] if hasattr(o, "legs") and o.legs else None,
+            }
+            for o in orders
+        ]
+    except Exception as e:
+        print(f"[Alpaca] get_orders_full failed: {e}")
+        return []
+
+
+def cancel_order(order_id: str) -> bool:
+    """Cancel an order by ID."""
+    if not (_alpaca_available and _trading_client):
+        return False
+    try:
+        _trading_client.cancel_order_by_id(order_id)
+        return True
+    except Exception as e:
+        print(f"[Alpaca] cancel_order failed: {e}")
+        return False

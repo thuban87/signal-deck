@@ -40,6 +40,48 @@ export function usePaperOrders() {
   });
 }
 
+export function usePaperOrdersFull(status = 'all', limit = 50, side = null) {
+  const { data: config } = useConfig();
+  const isAlpaca = config?.alpaca_connected;
+
+  const params = new URLSearchParams({ status, limit: String(limit) });
+  if (side) params.set('side', side);
+
+  return useQuery({
+    queryKey: ['paper-orders-full', status, limit, side],
+    queryFn: () => get(`/api/paper/orders/full?${params}`),
+    staleTime: 30 * 1000,
+    enabled: config != null && isAlpaca === true,
+  });
+}
+
+export function usePaperActivities(activityType = null, limit = 100) {
+  const { data: config } = useConfig();
+  const isAlpaca = config?.alpaca_connected;
+
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (activityType) params.set('activity_type', activityType);
+
+  return useQuery({
+    queryKey: ['paper-activities', activityType, limit],
+    queryFn: () => get(`/api/paper/activities?${params}`),
+    staleTime: 60 * 1000,
+    enabled: config != null && isAlpaca === true,
+  });
+}
+
+export function usePaperConfigurations() {
+  const { data: config } = useConfig();
+  const isAlpaca = config?.alpaca_connected;
+
+  return useQuery({
+    queryKey: ['paper-configurations'],
+    queryFn: () => get('/api/paper/configurations'),
+    staleTime: 5 * 60 * 1000,
+    enabled: config != null && isAlpaca === true,
+  });
+}
+
 export function usePortfolioHistory(period = '1M') {
   const { data: config } = useConfig();
   const isAlpaca = config?.alpaca_connected;

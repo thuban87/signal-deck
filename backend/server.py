@@ -50,6 +50,11 @@ from alpaca_client import (
     close_position as alpaca_close_position,
     get_orders as alpaca_get_orders,
     get_portfolio_history as alpaca_get_portfolio_history,
+    get_account_activities as alpaca_get_activities,
+    get_account_configurations as alpaca_get_configurations,
+    update_account_configurations as alpaca_update_configurations,
+    get_orders_full as alpaca_get_orders_full,
+    cancel_order as alpaca_cancel_order,
 )
 from data_fetcher import fetch_stock_data
 from indicators import add_all_indicators, get_signal_summary
@@ -800,6 +805,91 @@ async def api_paper_portfolio_history(
     if result is None:
         raise HTTPException(status_code=503, detail="Failed to fetch portfolio history")
     return result
+
+
+@app.get("/api/paper/activities")
+async def api_paper_activities(
+    activity_type: str = Query(None),
+    date: str = Query(None),
+    after: str = Query(None),
+    until: str = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    user: str = Depends(verify_token),
+):
+    """Get account activities from Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    return alpaca_get_activities(
+        activity_type=activity_type,
+        date=date,
+        after=after,
+        until=until,
+        limit=limit,
+    )
+
+
+@app.get("/api/paper/configurations")
+async def api_paper_configurations(user: str = Depends(verify_token)):
+    """Get account configurations from Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    config = alpaca_get_configurations()
+    if config is None:
+        raise HTTPException(status_code=503, detail="Failed to fetch configurations")
+    return config
+
+
+@app.patch("/api/paper/configurations")
+async def api_paper_update_configurations(
+    body: dict = Body(...),
+    user: str = Depends(verify_token),
+):
+    """Update account configurations on Alpaca."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+
+    allowed = {
+        "dtbp_check", "trade_confirm_email", "suspend_trade", "no_shorting",
+        "fractional_trading", "max_margin_multiplier", "max_options_trading_level",
+        "pdt_check", "ptp_no_exception_entry",
+    }
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid configuration fields provided")
+
+    result = alpaca_update_configurations(updates)
+    if result is None:
+        raise HTTPException(status_code=500, detail="Failed to update configurations")
+    return result
+
+
+@app.get("/api/paper/orders/full")
+async def api_paper_orders_full(
+    status: str = Query("all", pattern="^(open|closed|all)$"),
+    limit: int = Query(50, ge=1, le=500),
+    after: str = Query(None),
+    until: str = Query(None),
+    side: str = Query(None, pattern="^(buy|sell)$"),
+    user: str = Depends(verify_token),
+):
+    """Get detailed order history from Alpaca with all fields."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    return alpaca_get_orders_full(status=status, limit=limit, after=after, until=until, side=side)
+
+
+@app.delete("/api/paper/orders/{order_id}")
+async def api_paper_cancel_order(
+    order_id: str,
+    user: str = Depends(verify_token),
+):
+    """Cancel an order by ID."""
+    if not is_alpaca_available():
+        raise HTTPException(status_code=503, detail="Alpaca not configured")
+    success = alpaca_cancel_order(order_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to cancel order")
+    return {"canceled": True, "order_id": order_id}
 
 
 # ---------------------------------------------------------------------------
