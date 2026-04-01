@@ -174,6 +174,24 @@ async def root():
     return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-store"})
 
 
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    sw_path = frontend_dir / "sw.js"
+    if sw_path.exists():
+        return FileResponse(str(sw_path), media_type="application/javascript",
+                            headers={"Cache-Control": "no-store", "Service-Worker-Allowed": "/"})
+    raise HTTPException(status_code=404, detail="Service worker not found")
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+async def manifest():
+    manifest_path = frontend_dir / "manifest.webmanifest"
+    if manifest_path.exists():
+        return FileResponse(str(manifest_path), media_type="application/manifest+json",
+                            headers={"Cache-Control": "no-store"})
+    raise HTTPException(status_code=404, detail="Manifest not found")
+
+
 @app.get("/login", include_in_schema=False)
 async def login_page():
     return FileResponse(str(frontend_dir / "index.html"), headers={"Cache-Control": "no-store"})

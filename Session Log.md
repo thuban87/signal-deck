@@ -1417,7 +1417,7 @@ Rewrote `PaperTradingPage.jsx` from a single flat page to a tabbed interface wit
 
 ### Next Steps:
 
-- [ ] Deploy to Linux server (Nginx + systemd) — Node.js 18+ required on server for `npm ci` + `npm run build`
+- [x] Deploy to Linux server (Nginx + systemd) — Node.js 18+ required on server for `npm ci` + `npm run build`
 - [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)
@@ -1426,3 +1426,82 @@ Rewrote `PaperTradingPage.jsx` from a single flat page to a tabbed interface wit
 ### Next Session Prompt:
 
 > Paper Trading page fully overhauled with 5 sub-tabs (Dashboard, Positions, Orders, Balances, Configure) mirroring Alpaca. Widget grid v2 API fixes applied (dragConfig/resizeConfig, top-level rowHeight). Activities tab removed due to SDK incompatibility. `frontend-build/` added to `.gitignore`. Ready for production deployment — server needs Node.js 18+ installed, then run `deploy.sh`. Nginx config unchanged (reverse proxy to :8005, backend serves `frontend-build/` as static). Source at `frontend-react/`, 43 tests passing.
+
+---
+
+## 2026-03-31 (Session 13) — First Production Deployment + PWA Registration
+
+**Focus:** Deploy the React + Vite build to the Linux production server for the first time. Set up Progressive Web App (PWA) support for mobile home-screen installation.
+
+### Completed:
+
+#### Production Deployment
+- [x] Verified Node.js v22.22.2 + npm 10.9.7 available on server
+- [x] Ran `npm install` in `frontend-react/` (461 packages, 0 vulnerabilities)
+  - `npm ci` failed — lockfile out of sync with package.json; `npm install` regenerated it
+- [x] Built React frontend (`npm run build`) — 196 modules, output to `frontend-build/` in 767ms
+- [x] Updated Python venv dependencies (`pip install -r requirements.txt`) — all current
+- [x] Restarted `signal-deck` systemd service — `active (running)`
+- [x] Smoke-tested: root URL serves new React SPA (`index.html` with hashed JS/CSS bundles)
+
+#### PWA Registration (Progressive Web App)
+- [x] Generated PWA icons from existing `favicon.svg` using sharp:
+  - `pwa-192x192.png`, `pwa-512x512.png` — standard icons
+  - `pwa-maskable-192x192.png`, `pwa-maskable-512x512.png` — maskable (10% padding, safe for circular crop)
+  - `apple-touch-icon.png` — 180×180 for iOS
+- [x] Created `manifest.webmanifest` — app name, standalone display, dark theme (`#0a0e17`), accent (`#00d4aa`)
+- [x] Created `sw.js` — hand-written service worker with caching strategies:
+  - **API calls** (`/api/*`): network only (real-time data matters)
+  - **Hashed static assets** (`/static/assets/*`): cache-first, fall back to network
+  - **HTML navigation**: network-first, fall back to cached `/`
+  - **Other resources**: stale-while-revalidate
+- [x] Updated `index.html` — added `<link rel="manifest">`, `<link rel="apple-touch-icon">`, `<meta name="theme-color">`
+- [x] Added SW registration in `main.jsx` — registers `/sw.js` with `scope: '/'` on window load
+- [x] Added backend routes in `server.py` — `/sw.js` and `/manifest.webmanifest` served from root with correct MIME types and `Service-Worker-Allowed: /` header
+  - SW must be served from root (`/sw.js`) for its scope to cover `/` — can't serve from `/static/sw.js`
+- [x] `vite-plugin-pwa` not used — latest (1.2.0) doesn't support Vite 8; manual setup is equivalent
+- [x] Rebuilt frontend + restarted service — all PWA endpoints verified working
+
+### Files Changed:
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `frontend-react/public/manifest.webmanifest` | New | PWA manifest — app name, icons, theme, standalone mode |
+| `frontend-react/public/sw.js` | New | Service worker — caching strategies per request type |
+| `frontend-react/public/pwa-192x192.png` | New | Standard PWA icon (192px) |
+| `frontend-react/public/pwa-512x512.png` | New | Standard PWA icon (512px) |
+| `frontend-react/public/pwa-maskable-192x192.png` | New | Maskable PWA icon (192px, padded) |
+| `frontend-react/public/pwa-maskable-512x512.png` | New | Maskable PWA icon (512px, padded) |
+| `frontend-react/public/apple-touch-icon.png` | New | iOS home screen icon (180px) |
+| `frontend-react/index.html` | Modified | Added manifest link, apple-touch-icon, theme-color meta |
+| `frontend-react/src/main.jsx` | Modified | Added service worker registration on load |
+| `backend/server.py` | Modified | Added `/sw.js` and `/manifest.webmanifest` root routes |
+
+### Technical Notes:
+
+- **Why root routes for SW/manifest?** Service workers can only control pages within their scope. A SW served from `/static/sw.js` would only scope to `/static/*`, not the root `/` where the app lives. Backend explicitly serves these from root with `Service-Worker-Allowed: /` header.
+- **Vite `base: '/static/'` rewriting** — Vite transforms `href="/manifest.webmanifest"` in HTML to `/static/manifest.webmanifest`. This works because `StaticFiles` mount serves it at that path too. The `/manifest.webmanifest` backend route is a belt-and-suspenders fallback.
+- **Cache versioning** — Bump `CACHE_NAME` in `sw.js` (e.g., `signal-deck-v2`) when deploying updates to invalidate old caches. The SW's `activate` handler auto-cleans old cache versions.
+- **No `.gitignore` changes needed** — All PWA files are source (not build output). `frontend-build/` already ignored.
+
+### Testing Notes:
+
+- ✅ `GET /sw.js` — returns service worker JS with correct content-type
+- ✅ `GET /manifest.webmanifest` — returns JSON manifest with correct MIME type
+- ✅ `GET /static/manifest.webmanifest` — also accessible via static mount
+- ✅ `GET /static/pwa-192x192.png` — icon accessible
+- ✅ `GET /static/apple-touch-icon.png` — iOS icon accessible
+- ✅ Root URL HTML includes manifest link, apple-touch-icon, theme-color
+- ✅ Service restarted and running — `active (running)`
+
+### Next Steps:
+
+- [ ] Login rate limiting — `slowapi` or similar on `/api/login`
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support (4h, 1h candles)
+- [ ] Alert notifications (email/push when signals fire)
+- [ ] React Native app exploration
+
+### Next Session Prompt:
+
+> First production deployment complete — React + Vite frontend built and served on Linux server. PWA support added: manifest.webmanifest, service worker (sw.js), 5 icon sizes, apple-touch-icon. Users can "Add to Home Screen" on mobile for fullscreen standalone experience. Service worker caches static assets (cache-first) with network-only for API calls. Backend serves SW and manifest from root for proper scope. Bump `CACHE_NAME` in `sw.js` on each deploy to invalidate caches. `vite-plugin-pwa` skipped (no Vite 8 support); manual setup equivalent.

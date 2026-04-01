@@ -20,7 +20,8 @@ A full-stack trading signal dashboard that:
 15. **Settings** page — discovery tuning, Reddit config, options flow thresholds
 16. **Macro Economic Warning System** — curated FOMC/CPI/Jobs/GDP calendar with market status banners
 17. **Performance Analytics** — equity curve, 14 advanced metrics, win rate by tag, trade distribution
-18. Optionally queries a local LLM (Ollama) for on-demand analysis
+18. **Progressive Web App (PWA)** — installable on mobile home screen, standalone fullscreen mode, offline-capable static asset caching
+19. Optionally queries a local LLM (Ollama) for on-demand analysis
 
 **Not a live trading system.** All suggestions are for research and paper trading only.
 
@@ -45,6 +46,12 @@ Trading/
 ├── frontend-react/             # React + Vite SPA (active frontend source)
 │   ├── vite.config.js         # Vite config — base: '/static/', outDir: '../frontend-build'
 │   ├── index.html             # Vite entry point
+│   ├── public/                # Static assets copied to build root
+│   │   ├── manifest.webmanifest  # PWA manifest (app name, icons, theme)
+│   │   ├── sw.js              # Service worker (caching strategies)
+│   │   ├── favicon.svg        # App icon (SVG source)
+│   │   ├── pwa-*.png          # PWA icons (192, 512, maskable variants)
+│   │   └── apple-touch-icon.png  # iOS home screen icon (180px)
 │   └── src/
 │       ├── main.jsx           # App bootstrap — React Router, TanStack Query, Zustand
 │       ├── App.jsx            # Layout shell — sidebar, hamburger menu, toast, Quick-Logger
@@ -442,6 +449,33 @@ Configurable account size and risk percentage inputs on each page.
 
 ---
 
+## Progressive Web App (PWA)
+
+Signal Deck is a PWA — installable on mobile home screens with a native-app-like experience.
+
+### What It Provides
+- **Home screen install** — "Add to Home Screen" on iOS/Android opens Signal Deck fullscreen (no browser chrome)
+- **Standalone display** — runs without URL bar, feels like a native app
+- **Offline static caching** — app shell and hashed assets cached locally; API calls remain network-only (real-time data)
+- **Theme integration** — dark theme (`#0a0e17`) and accent (`#00d4aa`) applied to status bar and splash screen
+
+### Architecture
+- **manifest.webmanifest** — lives in `frontend-react/public/`, copied to `frontend-build/` on build. Backend also serves it at `/manifest.webmanifest` (root route) as fallback.
+- **sw.js** — hand-written service worker (no Workbox/vite-plugin-pwa — latest doesn't support Vite 8). Served from root (`/sw.js`) via explicit backend route with `Service-Worker-Allowed: /` header. Root scope is required so the SW controls all pages.
+- **Icons** — 5 PNGs generated from `favicon.svg`: 192px, 512px, maskable 192px, maskable 512px, apple-touch-icon 180px.
+- **Registration** — `main.jsx` registers the SW on window load.
+
+### Cache Versioning
+**Important for deployments:** Bump `CACHE_NAME` in `frontend-react/public/sw.js` (e.g., `signal-deck-v1` → `signal-deck-v2`) when deploying updates. The SW's `activate` handler auto-deletes old caches. If you forget, users may see stale cached assets.
+
+### Caching Strategies (in sw.js)
+- **`/api/*`** — network only (never cached — real-time market data)
+- **`/static/assets/*`** — cache-first (hashed filenames = safe to cache forever)
+- **HTML navigation** — network-first, falls back to cached `/` when offline
+- **Other resources** — stale-while-revalidate
+
+---
+
 ## Known Issues / Limitations
 
 - **Daily candles only** — intraday data not yet supported
@@ -497,8 +531,10 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Clickable symbols across all Paper Trading tabs
 - [x] Alpaca Dashboard external link + refresh with sync timestamp
 - [x] `frontend-build/` excluded from git tracking
+- [x] Deploy to Linux server (Nginx + systemd)
+- [x] **PWA registration** — manifest.webmanifest, service worker (sw.js), 5 icon sizes, apple-touch-icon, standalone mode
 - [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)
 - [ ] Alert notifications (email/push when signals fire)
-- [ ] Deploy to Linux server (Nginx + systemd)
+- [ ] React Native app
