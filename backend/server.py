@@ -1171,22 +1171,54 @@ def _get_performance_trades(period: str) -> list[dict]:
     trades = []
 
     if is_alpaca_available():
-        # Get closed orders from Alpaca
+        # Get closed orders from Alpaca — match buy/sell pairs per symbol
         try:
-            orders = alpaca_get_orders(status="closed", limit=200)
+            orders = alpaca_get_orders(status="closed", limit=500)
             if orders:
+                # Group filled orders by symbol
+                buys_by_symbol = {}  # symbol -> list of (price, qty, date)
+                sells_by_symbol = {}
+
                 for o in orders:
-                    if o.get("filled_avg_price") and o.get("side") == "sell":
-                        trades.append({
-                            "symbol": o.get("symbol", ""),
-                            "entry_price": float(o.get("filled_avg_price", 0)),
-                            "exit_price": float(o.get("filled_avg_price", 0)),
-                            "entry_date": o.get("created_at", "")[:10],
-                            "exit_date": o.get("filled_at", o.get("created_at", ""))[:10],
-                            "pnl_pct": float(o.get("pnl_pct", 0)) if o.get("pnl_pct") else None,
-                            "status": "closed",
-                            "source": "alpaca",
-                        })
+                    if not o.get("filled_avg_price"):
+                        continue
+                    sym = o.get("symbol", "")
+                    price = float(o["filled_avg_price"])
+                    qty = float(o.get("filled_qty") or o.get("qty") or 0)
+                    date_str = (o.get("filled_at") or o.get("created_at") or "")[:10]
+
+                    entry = {"price": price, "qty": qty, "date": date_str}
+                    if o.get("side") == "buy":
+                        buys_by_symbol.setdefault(sym, []).append(entry)
+                    elif o.get("side") == "sell":
+                        sells_by_symbol.setdefault(sym, []).append(entry)
+
+                # Match sells to buys (FIFO) to compute P&L
+                for sym, sells in sells_by_symbol.items():
+                    symbol_buys = buys_by_symbol.get(sym, [])
+                    # Sort oldest first
+                    symbol_buys.sort(key=lambda x: x["date"])
+                    sells.sort(key=lambda x: x["date"])
+
+                    buy_idx = 0
+                    for sell in sells:
+                        if buy_idx < len(symbol_buys):
+                            buy = symbol_buys[buy_idx]
+                            buy_idx += 1
+                            pnl_pct = ((sell["price"] - buy["price"]) / buy["price"]) * 100 if buy["price"] else 0
+                            trades.append({
+                                "symbol": sym,
+                                "entry_price": buy["price"],
+                                "exit_price": sell["price"],
+                                "entry_date": buy["date"],
+                                "exit_date": sell["date"],
+                                "pnl_pct": round(pnl_pct, 2),
+                                "status": "closed",
+                                "source": "alpaca",
+                            })
+                        else:
+                            # Sell with no matching buy (short or external) — skip
+                            pass
         except Exception as e:
             print(f"[Performance] Alpaca orders error: {e}")
 
@@ -1918,6 +1950,24 @@ SECTOR_ETFS = [
     {"symbol": "XLU", "name": "Utilities", "color": "#556478"},
 ]
 
+# Top constituents per sector (curated, ~15–20 each)
+SECTOR_CONSTITUENTS = {
+    "XLK": ["AAPL", "MSFT", "NVDA", "AVGO", "ADBE", "CRM", "AMD", "CSCO", "INTC", "ORCL", "ACN", "TXN", "QCOM", "AMAT", "INTU", "NOW", "MU", "LRCX", "KLAC", "SNPS"],
+    "XLF": ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "SPGI", "BLK", "C", "AXP", "SCHW", "MMC", "PGR", "CB", "ICE", "CME", "AON", "USB"],
+    "XLE": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "HAL", "DVN", "BKR", "FANG", "TRGP", "WMB", "KMI", "OKE", "CTRA", "EQT", "MRO"],
+    "XLV": ["UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT", "DHR", "BMY", "AMGN", "GILD", "ELV", "ISRG", "SYK", "MDT", "REGN", "VRTX", "CI", "ZTS"],
+    "XLC": ["META", "GOOGL", "GOOG", "NFLX", "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "EA", "TTWO", "WBD", "OMC", "LYV", "MTCH", "FOXA", "NWSA", "RBLX", "SNAP"],
+    "XLY": ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "TJX", "BKNG", "CMG", "ABNB", "ORLY", "MAR", "HLT", "GM", "F", "ROST", "DHI", "LEN", "YUM"],
+    "XLP": ["PG", "PEP", "KO", "COST", "WMT", "PM", "MO", "MDLZ", "CL", "EL", "GIS", "SJM", "KMB", "KHC", "HSY", "STZ", "CAG", "MKC", "CHD", "MNST"],
+    "XLI": ["RTX", "CAT", "UNP", "HON", "DE", "BA", "UPS", "GE", "LMT", "MMM", "ADP", "CSX", "NSC", "ITW", "EMR", "WM", "ETN", "FDX", "JCI", "GD"],
+    "XLB": ["LIN", "APD", "SHW", "ECL", "FCX", "NEM", "NUE", "DD", "DOW", "VMC", "MLM", "PPG", "IFF", "ALB", "CE", "CF", "BALL", "CTVA", "FMC", "EMN"],
+    "XLRE": ["PLD", "AMT", "CCI", "EQIX", "SPG", "PSA", "O", "DLR", "WELL", "AVB", "EQR", "VTR", "ARE", "SBAC", "WY", "MAA", "UDR", "ESS", "HST", "IRM"],
+    "XLU": ["NEE", "DUK", "SO", "D", "AEP", "SRE", "EXC", "XEL", "ED", "WEC", "ES", "AWK", "DTE", "AEE", "PPL", "FE", "CMS", "CNP", "EVRG", "ATO"],
+}
+
+_sector_constituents_cache = {}
+_sector_cache_ts = 0
+
 
 @app.get("/api/sectors/performance")
 async def api_sector_performance(user: str = Depends(verify_token)):
@@ -1960,6 +2010,76 @@ async def api_sector_performance(user: str = Depends(verify_token)):
         print(f"[Sectors] Batch fetch error: {e}")
 
     return results
+
+
+@app.get("/api/sectors/{sector_symbol}/constituents")
+async def api_sector_constituents(sector_symbol: str,
+                                   user: str = Depends(verify_token)):
+    """Get constituent stocks for a sector ETF with daily metrics."""
+    import yfinance as yf
+    import time as _time
+
+    sector_symbol = sector_symbol.upper()
+    constituents = SECTOR_CONSTITUENTS.get(sector_symbol)
+    if not constituents:
+        raise HTTPException(status_code=404, detail=f"Unknown sector: {sector_symbol}")
+
+    global _sector_constituents_cache, _sector_cache_ts
+    cache_key = sector_symbol
+    now = _time.time()
+    if cache_key in _sector_constituents_cache and (now - _sector_cache_ts) < 300:
+        return _sector_constituents_cache[cache_key]
+
+    results = []
+    try:
+        tickers = yf.Tickers(" ".join(constituents))
+        for sym in constituents:
+            try:
+                ticker = tickers.tickers.get(sym) or tickers.tickers.get(sym.replace("-", ""))
+                if not ticker:
+                    continue
+                info = ticker.info or {}
+                hist = ticker.history(period="5d")
+                if hist is None or len(hist) < 2:
+                    continue
+                prev_close = float(hist.iloc[-2]["Close"])
+                curr_close = float(hist.iloc[-1]["Close"])
+                change_pct = ((curr_close - prev_close) / prev_close) * 100
+                results.append({
+                    "symbol": sym,
+                    "name": info.get("shortName") or info.get("longName") or sym,
+                    "price": round(curr_close, 2),
+                    "change_pct": round(change_pct, 2),
+                    "market_cap": info.get("marketCap"),
+                    "pe_ratio": info.get("trailingPE"),
+                    "dividend_yield": info.get("dividendYield"),
+                    "volume": int(hist.iloc[-1].get("Volume", 0)),
+                })
+            except Exception as e:
+                print(f"[Sector constituents] Error on {sym}: {e}")
+    except Exception as e:
+        print(f"[Sector constituents] Batch error: {e}")
+
+    # Sort by change_pct and attach sector meta
+    sector_meta = next((s for s in SECTOR_ETFS if s["symbol"] == sector_symbol), {})
+    payload = {
+        "sector_symbol": sector_symbol,
+        "sector_name": sector_meta.get("name", sector_symbol),
+        "color": sector_meta.get("color", "#666"),
+        "stocks": sorted(results, key=lambda x: x["change_pct"], reverse=True),
+    }
+    _sector_constituents_cache[cache_key] = payload
+    _sector_cache_ts = now
+    return payload
+
+
+@app.get("/api/sectors/all-constituents")
+async def api_all_sector_constituents(user: str = Depends(verify_token)):
+    """Get all sector symbols (flat list) for matchmaker source."""
+    all_symbols = []
+    for syms in SECTOR_CONSTITUENTS.values():
+        all_symbols.extend(syms)
+    return {"symbols": list(set(all_symbols))}
 
 
 # ---------------------------------------------------------------------------
@@ -2367,6 +2487,10 @@ async def api_discover_matchmaker_candidates(
         elif src == "screener":
             # Use watchlist as screener base
             candidates.update(get_watchlist())
+        elif src == "industries":
+            # All sector constituent stocks
+            for syms in SECTOR_CONSTITUENTS.values():
+                candidates.update(syms)
 
     # Remove already-seen and already-watchlisted
     candidates = candidates - dismissed - watchlist

@@ -14,14 +14,17 @@ A full-stack trading signal dashboard that:
 9. **Sector Heatmap** — treemap of 11 SPDR sector ETFs with daily performance
 10. **Custom Baskets** — "Write What You Know" micro-sector groups with aggregate metrics
 11. **Widget Grid** — draggable/resizable dashboard layout via react-grid-layout with edit mode and persistence
-12. **Discover Hub** — 5-source stock discovery (Matchmaker swipe UI, Congress trades, Insider scan, Reddit social momentum, Options flow)
+12. **Discover Hub** — 6-source stock discovery (Matchmaker swipe UI, Congress trades, Insider scan, Reddit social momentum, Options flow, Industries)
 13. **Trade Actions** — automated Buy/Sell/Hold recommendations with confidence levels
 14. **What-If Calculator** — historical trade simulation with candlestick chart and P&L
-15. **Settings** page — discovery tuning, Reddit config, options flow thresholds
+15. **Settings** page — discovery tuning, Reddit config, options flow thresholds, sidebar ticker
 16. **Macro Economic Warning System** — curated FOMC/CPI/Jobs/GDP calendar with market status banners
 17. **Performance Analytics** — equity curve, 14 advanced metrics, win rate by tag, trade distribution
 18. **Progressive Web App (PWA)** — installable on mobile home screen, standalone fullscreen mode, offline-capable static asset caching
-19. Optionally queries a local LLM (Ollama) for on-demand analysis
+19. **Industries Page** — sector drill-down with expandable cards showing top gainers/losers per sector
+20. **Sidebar Ticker** — rotating stock ticker with configurable sources, cycle modes, and speed
+21. **Quick Trade Modal** — floating order form on stock detail pages for rapid paper trading
+22. Optionally queries a local LLM (Ollama) for on-demand analysis
 
 **Not a live trading system.** All suggestions are for research and paper trading only.
 
@@ -63,8 +66,10 @@ Trading/
 │       ├── components/        # Reusable UI + feature widgets
 │       │   ├── ui/            # WidgetGrid, PriceChart, AreaChart, Modal, etc.
 │       │   ├── dashboard/     # Dashboard widgets (7 widgets)
-│       │   ├── stock/         # Stock detail widgets (16 widgets)
-│       │   └── paper/         # Paper trading sub-tabs (5 tabs + dashboard widgets)
+│       │   ├── stock/         # Stock detail widgets (16 widgets + QuickTradeModal)
+│       │   ├── paper/         # Paper trading sub-tabs (5 tabs + dashboard widgets)
+│       │   ├── SidebarTicker.jsx  # Rotating stock ticker (desktop sidebar)
+│       │   └── QuickLogFab.jsx    # Quick-Logger floating action button
 │       └── utils/             # formatters.js, calculations.js
 ├── frontend-build/             # Vite build output (served by backend)
 ├── frontend/                   # Legacy vanilla JS/CSS/HTML (preserved, unused when build exists)
@@ -265,13 +270,13 @@ FAB (floating action button) on every page. Enter a company name or ticker — b
 
 ## Sector Heatmap
 
-Treemap visualization of 11 SPDR sector ETFs (XLK, XLF, XLE, XLV, XLC, XLY, XLP, XLI, XLB, XLRE, XLU). Cell size proportional to market cap, color from smooth red→neutral→green gradient based on daily change %. Data fetched via yfinance.
+Treemap visualization of 11 SPDR sector ETFs (XLK, XLF, XLE, XLV, XLC, XLY, XLP, XLI, XLB, XLRE, XLU). Cell size proportional to market cap, color from smooth red→neutral→green gradient based on daily change %. Data fetched via yfinance. **Clickable cells** — each sector navigates to the Industries tab on the Discover page with that sector auto-expanded.
 
 ---
 
 ## Custom Baskets ("Write What You Know")
 
-Group related stocks into named baskets with emoji icons. 4 default baskets seeded: Rideshare, Crohn's/GI, SysAdmin, AI. Each basket shows aggregate metrics: avg RSI, avg ADX, avg change %, trend consensus. Expandable detail rows. Edit/delete via prompt-based editor.
+Group related stocks into named baskets with emoji icons. 4 default baskets seeded: Rideshare, Crohn's/GI, SysAdmin, AI. Each basket shows aggregate metrics: avg RSI, avg ADX, avg change %, trend consensus. Expandable detail rows. Edit/delete via prompt-based editor. Uses **flex-wrap** layout — baskets reflow to fit widget width instead of horizontal scroll.
 
 ---
 
@@ -282,7 +287,7 @@ The **Dashboard**, **Stock Detail**, and **Paper Trading Dashboard** pages use *
 ### react-grid-layout v2 API Notes
 - **Drag/resize control:** Use `dragConfig={{ enabled: bool }}` and `resizeConfig={{ enabled: bool }}` — NOT flat `isDraggable`/`isResizable` props (silently ignored in v2)
 - **Row height:** Pass `rowHeight` as a top-level prop on `ResponsiveGridLayout` — NOT inside `gridConfig` (which is only for `GridLayout`)
-- **Centering caution:** Do NOT add `display: flex; justify-content: center` to `.widget-body` — causes infinite ResizeObserver loop with TradingView charts
+- **Centering caution:** Do NOT add `display: flex; justify-content: center` to `.widget-body` globally — causes infinite ResizeObserver loop with TradingView charts. Instead, use the `bodyClassName` prop on individual widgets to apply `widget-body-centered` selectively (only on non-chart widgets like Market Status, Signal Alerts, Baskets, Sector Heatmap, Screener, Account Metrics, Place Order)
 
 ### Dashboard Widgets
 - **7 widgets:** Market Status, Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
@@ -298,6 +303,7 @@ The **Dashboard**, **Stock Detail**, and **Paper Trading Dashboard** pages use *
 
 ### Stock Detail Widgets
 - **16 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Macro Events, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
+- **Quick Trade modal:** "📈 Trade" button in stock detail header opens floating order form (not a grid widget — overlays on top). Supports all 5 Alpaca order types, shares/dollars toggle, pre-fills symbol.
 - **Edit mode:** same UX as dashboard — "Customize" button with drag/resize handles
 - **Global layout:** saved to `localStorage` keys `sd_stock_detail_layout` / `sd_stock_detail_layout_mobile` (shared across all symbols, separate per device)
 - **Chart hover tooltip:** OHLCV values displayed as floating window that follows cursor (flips sides near chart edge)
@@ -322,15 +328,21 @@ At ≤768px, the sidebar is hidden and replaced with a **hamburger menu button**
 
 ## Discover Hub
 
-Stock discovery engine at `#/discover` with 5 sub-tabs:
+Stock discovery engine at `#/discover` with 6 sub-tabs:
 
-- **Matchmaker** — "Tinder for Stocks" swipe UI. Cards show mini price chart + 8 technical metrics. Swipe right → watchlist, left → dismiss, down → skip. Sources: S&P 500, Congress trades, Insider buying, Social momentum, Options flow.
+- **Matchmaker** — "Tinder for Stocks" swipe UI. Cards show mini price chart + 8 technical metrics. Swipe right → watchlist, left → dismiss, down → skip. Sources: S&P 500, Congress trades, Insider buying, Social momentum, Options flow, Industries. **Auto-loads** S&P 500 candidates on page mount.
 - **Government** — Congressional stock trades scraped from Capitol Trades with Senate EFDS fallback. Shows politician, party (R/D/I), chamber, ticker, trade type, amount, dates. Aggregated popular tickers view.
 - **Insider** — Market-wide insider trading scan via OpenInsider. Configurable min value ($100K/$500K/$1M+). Cards show net signal (bullish/bearish/neutral), buy/sell dollar totals.
 - **Social** — Reddit mentions via PRAW across 4 subreddits. VADER sentiment on post titles. Background scheduler scans every 4 hours via APScheduler.
 - **Options Flow** — Unusual options activity scanner. Flags high Vol/OI ratios (≥500%) and whale premium (≥$1M). Scans nearest 3 expirations.
+- **Industries** — Sector drill-down with 11 expandable sector cards. Each card shows sector name, daily avg change %, and a collapsible list of ~20 top constituents sorted into Top Gainers (green) and Top Losers (red). Card headers use red→green gradient matching dashboard heatmap. Clickable stock rows navigate to stock detail. Linked from dashboard sector heatmap via `?sector=XLK` query param.
 
 Data cached in SQLite (`congress_trades`, `social_mentions`, `options_flow`, `matchmaker_seen` tables). Settings configurable via Settings page.
+
+### Sector Constituents API
+- `GET /api/sectors/{symbol}/constituents` — Returns ~20 stocks with price, change_pct, name, market_cap, PE, dividend_yield, volume. 5-minute in-memory cache.
+- `GET /api/sectors/all-constituents` — Flat list of all sector symbols (for matchmaker Industries source)
+- **SECTOR_CONSTITUENTS map** — Static map in `server.py` of 11 SPDR sector ETFs → ~20 top constituent symbols each. Delisted symbols have been replaced with current active tickers.
 
 ---
 
@@ -361,10 +373,11 @@ Discovery tuning at `#/settings`:
 - Social Momentum: scan interval, mention threshold, spike ratio, subreddit list
 - Options Flow: Vol/OI threshold, premium threshold, S&P 500 daily scan toggle, scan time
 - Matchmaker: auto-reset dismissed stocks after N days
+- **Sidebar Ticker:** cycle speed (seconds), cycle type (batch/slide/random), visible boxes (1–6), default source (watchlist/S&P 500/gov trades/insider)
 - Reddit API credential status badge
 - Batch save and reset-to-defaults
 
-Stored in SQLite `app_settings` table.
+Stored in SQLite `app_settings` table. **Important:** Any new setting keys must be added to `DEFAULT_SETTINGS` in `database.py` — the PUT endpoint filters against this whitelist.
 
 ---
 
@@ -415,7 +428,7 @@ Dedicated performance tracking page at `#/performance`.
 
 ### Data Source
 - Auto-detects Alpaca vs local paper trades (same pattern as Paper Trading page)
-- Alpaca mode: real portfolio history + closed order data
+- Alpaca mode: real portfolio history + closed order data with **FIFO buy/sell pair matching** — groups orders by symbol, sorts chronologically, matches buys to sells FIFO, computes `pnl_pct = ((sell.price - buy.price) / buy.price) * 100`
 - Local fallback: builds from SQLite paper_trades table
 - Period filter: 1W, 1M, 3M, 6M, 1Y, All Time
 
@@ -431,6 +444,41 @@ Dedicated performance tracking page at `#/performance`.
 Dashboard → Discover → Investigator → Signals → Backtest → Paper Trading → Performance → [divider] → Settings
 
 Represents the logical flow: overview → find stocks → research → analyze signals → validate → trade → measure results → configure.
+
+---
+
+## Sidebar Stock Ticker
+
+Rotating stock ticker displayed in the desktop sidebar between navigation and footer (hidden at ≤768px mobile).
+
+### Features
+- Shows configurable number of boxes (1–6, default 3)
+- Each box: symbol, daily change %, trend badge (▲/▼/→), signal count
+- Clickable → navigates to stock detail page
+- Click source header text to cycle through sources manually
+- Fade-in animation on rotation
+
+### Cycle Modes
+- **Batch** (default) — swaps all visible at once (items 1,2,3 → 4,5,6)
+- **Slide** — advances one at a time (items 1,2,3 → 2,3,4)
+- **Random** — random offset each cycle
+
+### Data Sources
+- **Watchlist** — symbols from user's watchlist with live data
+- **S&P 500** — sector constituents via `/api/sectors/{symbol}/constituents`
+- **Gov Trades** — congressional trades from `/api/discover/government`
+- **Insider** — insider trading from `/api/discover/insider`
+- All 4 sources pre-fetched eagerly on mount (no lazy loading)
+
+### Settings
+Configurable via Settings page (`#/settings` → Sidebar Ticker section):
+- `ticker_cycle_speed` — seconds between rotations (2–60, default 6)
+- `ticker_cycle_type` — batch / slide / random
+- `ticker_visible_count` — boxes visible at once (1–6, default 3)
+- `ticker_default_source` — initial source (watchlist / sp500 / congress / insider)
+
+### Watchlist API Shape
+**Important:** `/api/watchlist` returns `{ symbols: string[], data: { [symbol]: {...} } }` — NOT an array. Components must use `watchlist.symbols` for iteration and `watchlist.data[symbol]` for per-stock data.
 
 ---
 
@@ -533,6 +581,15 @@ Signal Deck is a PWA — installable on mobile home screens with a native-app-li
 - [x] `frontend-build/` excluded from git tracking
 - [x] Deploy to Linux server (Nginx + systemd)
 - [x] **PWA registration** — manifest.webmanifest, service worker (sw.js), 5 icon sizes, apple-touch-icon, standalone mode
+- [x] **Industries page** — sector drill-down with expandable cards, top gainers/losers per sector, linked from dashboard heatmap
+- [x] **Sidebar stock ticker** — rotating ticker with 4 sources, 3 cycle modes, configurable via Settings
+- [x] **Quick Trade modal** — floating order form on stock detail pages, all 5 Alpaca order types
+- [x] **Performance P&L fix** — FIFO buy/sell pair matching for accurate Alpaca trade metrics
+- [x] Sector heatmap clickable → Industries navigation
+- [x] Matchmaker auto-load S&P 500 + Industries source
+- [x] Baskets flex-wrap layout
+- [x] Selective widget-body-centered (via bodyClassName prop, avoids chart ResizeObserver loops)
+- [x] Sidebar ticker settings in Settings page (4 configurable options)
 - [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)

@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
 import { useEffect, useState, useCallback } from 'react';
 import { get } from '../api/client';
+import SidebarTicker from './SidebarTicker';
 
 const navItems = [
   {
@@ -156,6 +157,10 @@ export default function Sidebar({ mobileOpen, onCloseMobile }) {
           {settingsItem.icon}
           <span>{settingsItem.label}</span>
         </Link>
+      </div>
+
+      <div className="sidebar-ticker-desktop">
+        <SidebarTicker />
       </div>
 
       <div className="sidebar-footer">

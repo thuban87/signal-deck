@@ -326,8 +326,8 @@ const DEFAULT_LAYOUT = [
 ];
 
 const WIDGET_MAP = {
-  'account-metrics': { header: null, Content: AccountMetricsWidget },
-  'place-order':     { header: 'Place Order', Content: PlaceOrderWidget },
+  'account-metrics': { header: null, Content: AccountMetricsWidget, centered: true },
+  'place-order':     { header: 'Place Order', Content: PlaceOrderWidget, centered: true },
   'positions':       { header: 'Open Positions', Content: OpenPositionsWidget },
   'recent-orders':   { header: 'Recent Orders', Content: RecentOrdersWidget },
   'equity':          { header: 'Portfolio Equity', Content: EquityWidget },
@@ -350,6 +350,7 @@ export default function PaperDashboardTab() {
     return {
       id: item.i,
       header: def.header,
+      bodyClassName: def.centered ? 'widget-body-centered' : undefined,
       content: (
         <ErrorBoundary>
           <def.Content />

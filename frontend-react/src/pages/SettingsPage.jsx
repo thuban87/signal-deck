@@ -15,6 +15,10 @@ const DEFAULTS = {
   options_sp500_scan_enabled: 'false',
   options_sp500_scan_time: '09:45',
   matchmaker_reset_days: '7',
+  ticker_cycle_speed: '6',
+  ticker_cycle_type: 'batch',
+  ticker_visible_count: '3',
+  ticker_default_source: 'watchlist',
 };
 
 function SettingRow({ label, description, children }) {
@@ -124,6 +128,32 @@ export default function SettingsPage() {
           <h3 style={{ margin: '0 0 1rem' }}>Matchmaker</h3>
           <SettingRow label="Reset Dismissed After (days)" description="Auto-resurface dismissed stocks after this many days">
             <input className="input" type="number" min="1" max="90" value={form.matchmaker_reset_days || ''} onChange={e => set('matchmaker_reset_days', e.target.value)} />
+          </SettingRow>
+        </div>
+
+        {/* Sidebar Ticker */}
+        <div className="card" style={{ padding: '1.5rem' }}>
+          <h3 style={{ margin: '0 0 1rem' }}>Sidebar Ticker</h3>
+          <SettingRow label="Cycle Speed (seconds)" description="How many seconds each set of ticker items stays visible">
+            <input className="input" type="number" min="2" max="60" value={form.ticker_cycle_speed || ''} onChange={e => set('ticker_cycle_speed', e.target.value)} />
+          </SettingRow>
+          <SettingRow label="Cycle Type" description="How the ticker transitions between items">
+            <select className="input" value={form.ticker_cycle_type || 'batch'} onChange={e => set('ticker_cycle_type', e.target.value)}>
+              <option value="batch">Batch — swap all at once (1,2,3 → 4,5,6)</option>
+              <option value="slide">Slide — advance one at a time (1,2,3 → 2,3,4)</option>
+              <option value="random">Random — show random items each cycle</option>
+            </select>
+          </SettingRow>
+          <SettingRow label="Visible Boxes" description="Number of ticker items visible at once (1–6)">
+            <input className="input" type="number" min="1" max="6" value={form.ticker_visible_count || ''} onChange={e => set('ticker_visible_count', e.target.value)} />
+          </SettingRow>
+          <SettingRow label="Default Source" description="Data source the ticker starts with">
+            <select className="input" value={form.ticker_default_source || 'watchlist'} onChange={e => set('ticker_default_source', e.target.value)}>
+              <option value="watchlist">Watchlist</option>
+              <option value="sp500">S&P 500</option>
+              <option value="congress">Gov Trades</option>
+              <option value="insider">Insider</option>
+            </select>
           </SettingRow>
         </div>
       </div>

@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { get, post } from '../api/client';
 import PageHeader from '../components/ui/PageHeader';
 import LoadingSkeleton from '../components/ui/LoadingSkeleton';
 import EmptyState from '../components/ui/EmptyState';
-import { formatPrice, formatNumber } from '../utils/formatters';
+import { formatPrice, formatNumber, formatChange } from '../utils/formatters';
 import { useAppStore } from '../stores/appStore';
 import MiniCandlestickChart from '../components/ui/MiniCandlestickChart';
 
 const TABS = [
   { id: 'matchmaker', label: '💘 Matchmaker' },
+  { id: 'industries', label: '🏭 Industries' },
   { id: 'congress', label: '🏛️ Government' },
   { id: 'insider', label: '👤 Insider' },
   { id: 'social', label: '📱 Social' },
@@ -61,6 +62,15 @@ function MatchmakerTab() {
     }
   }, [candidates, currentIndex, loadCard]);
 
+  // Auto-load on first mount
+  const hasAutoLoaded = useRef(false);
+  useEffect(() => {
+    if (!hasAutoLoaded.current && sources.length > 0) {
+      hasAutoLoaded.current = true;
+      loadCandidates();
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
   const swipe = useCallback(async (action) => {
     if (!card) return;
     try {
@@ -97,6 +107,7 @@ function MatchmakerTab() {
 
   const allSources = [
     { id: 'sp500', label: 'S&P 500' },
+    { id: 'industries', label: 'Industries' },
     { id: 'congress', label: 'Government' },
     { id: 'insider', label: 'Insider' },
     { id: 'social', label: 'Social' },
@@ -508,18 +519,147 @@ function OptionsTab() {
   );
 }
 
+// ── Industries Tab ───────────────────────────────────────────────────────────
+function heatmapColor(changePct) {
+  const clamped = Math.max(-3, Math.min(3, changePct));
+  const ratio = (clamped + 3) / 6;
+  if (ratio < 0.5) {
+    const r = 255;
+    const g = Math.round(60 + ratio * 2 * 140);
+    const b = Math.round(60 + ratio * 2 * 100);
+    return `rgba(${r}, ${g}, ${b}, 0.85)`;
+  } else {
+    const t = (ratio - 0.5) * 2;
+    const r = Math.round(200 - t * 200);
+    const g = Math.round(200 + t * 55);
+    const b = Math.round(160 - t * 60);
+    return `rgba(${r}, ${g}, ${b}, 0.85)`;
+  }
+}
+
+function SectorCard({ sector, defaultExpanded }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const navigate = useNavigate();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['sector-constituents', sector.symbol],
+    queryFn: () => get(`/api/sectors/${sector.symbol}/constituents`),
+    staleTime: 5 * 60 * 1000,
+    enabled: expanded,
+  });
+
+  const chg = sector.change_pct || 0;
+  const bg = heatmapColor(chg);
+  const textColor = Math.abs(chg) > 1.5 ? '#fff' : 'var(--text-primary)';
+
+  const stocks = data?.stocks || [];
+  const gainers = stocks.filter(s => s.change_pct >= 0).slice(0, 5);
+  const losers = [...stocks].sort((a, b) => a.change_pct - b.change_pct).filter(s => s.change_pct < 0).slice(0, 5);
+
+  return (
+    <div className="industry-card">
+      <div
+        className="industry-card-header"
+        style={{ background: bg, color: textColor }}
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div className="industry-card-name">{sector.name}</div>
+        <div className="industry-card-change">{formatChange(chg)}</div>
+        <div className="industry-card-etf">{sector.symbol}</div>
+        <div className="industry-card-toggle">{expanded ? '▼' : '▶'}</div>
+      </div>
+      {expanded && (
+        <div className="industry-card-body">
+          {isLoading ? (
+            <LoadingSkeleton type="table" />
+          ) : stocks.length === 0 ? (
+            <p className="text-muted" style={{ padding: '0.5rem' }}>No data available</p>
+          ) : (
+            <div className="industry-card-lists">
+              <div className="industry-card-list">
+                <div className="industry-list-header text-green">▲ Top Gainers</div>
+                {gainers.length === 0 ? (
+                  <p className="text-muted" style={{ fontSize: '0.75rem', padding: '0.25rem 0' }}>No gainers today</p>
+                ) : gainers.map(s => (
+                  <div key={s.symbol} className="industry-stock-row" onClick={() => navigate(`/stock/${s.symbol}`)}>
+                    <span className="industry-stock-symbol">{s.symbol}</span>
+                    <span className="industry-stock-name">{s.name}</span>
+                    <span className="industry-stock-price">{formatPrice(s.price)}</span>
+                    <span className="industry-stock-change text-green">{formatChange(s.change_pct)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="industry-card-list">
+                <div className="industry-list-header text-red">▼ Top Losers</div>
+                {losers.length === 0 ? (
+                  <p className="text-muted" style={{ fontSize: '0.75rem', padding: '0.25rem 0' }}>No losers today</p>
+                ) : losers.map(s => (
+                  <div key={s.symbol} className="industry-stock-row" onClick={() => navigate(`/stock/${s.symbol}`)}>
+                    <span className="industry-stock-symbol">{s.symbol}</span>
+                    <span className="industry-stock-name">{s.name}</span>
+                    <span className="industry-stock-price">{formatPrice(s.price)}</span>
+                    <span className="industry-stock-change text-red">{formatChange(s.change_pct)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IndustriesTab({ expandSector }) {
+  const { data: sectors, isLoading } = useQuery({
+    queryKey: ['sectors-performance'],
+    queryFn: () => get('/api/sectors/performance'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (isLoading) return <LoadingSkeleton type="card" />;
+  if (!sectors || sectors.length === 0) return <EmptyState icon="🏭" title="No sector data" message="Sector performance data unavailable" />;
+
+  const sorted = [...sectors].sort((a, b) => (b.market_cap || 0) - (a.market_cap || 0));
+
+  return (
+    <div className="industries-grid">
+      {sorted.map(s => (
+        <SectorCard
+          key={s.symbol}
+          sector={s}
+          defaultExpanded={expandSector === s.symbol}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function DiscoverPage() {
   const { tab: routeTab } = useParams();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState(routeTab || 'matchmaker');
+  const [expandSector, setExpandSector] = useState(null);
 
   useEffect(() => {
     if (routeTab && TABS.some(t => t.id === routeTab)) setActiveTab(routeTab);
   }, [routeTab]);
 
+  useEffect(() => {
+    const searchStr = location.search || '';
+    const params = new URLSearchParams(searchStr);
+    const sector = params.get('sector');
+    if (sector) {
+      setActiveTab('industries');
+      setExpandSector(sector.toUpperCase());
+    }
+  }, [location]);
+
   const renderTab = () => {
     switch (activeTab) {
       case 'matchmaker': return <MatchmakerTab />;
+      case 'industries': return <IndustriesTab expandSector={expandSector} />;
       case 'congress': return <GovernmentTab />;
       case 'insider': return <InsiderTab />;
       case 'social': return <SocialTab />;

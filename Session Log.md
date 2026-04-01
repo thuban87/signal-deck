@@ -1505,3 +1505,141 @@ Rewrote `PaperTradingPage.jsx` from a single flat page to a tabbed interface wit
 ### Next Session Prompt:
 
 > First production deployment complete — React + Vite frontend built and served on Linux server. PWA support added: manifest.webmanifest, service worker (sw.js), 5 icon sizes, apple-touch-icon. Users can "Add to Home Screen" on mobile for fullscreen standalone experience. Service worker caches static assets (cache-first) with network-only for API calls. Backend serves SW and manifest from root for proper scope. Bump `CACHE_NAME` in `sw.js` on each deploy to invalidate caches. `vite-plugin-pwa` skipped (no Vite 8 support); manual setup equivalent.
+
+---
+
+## 2026-04-01 — Feature Batch: Industries, Ticker, Quick Trade, Performance Fix
+
+**Focus:** Major feature batch — 10+ new features and bug fixes across Dashboard, Discover, Stock Detail, Performance, Sidebar, and Settings pages.
+
+### Completed:
+
+#### Dashboard Improvements
+
+- ✅ **Baskets widget flex-wrap** — Changed from horizontal-only scroll (`flex: 0 0 280px` + `overflow-x: auto`) to responsive wrapping layout (`flex: 1 1 260px` + `flex-wrap: wrap`). Baskets now reflow to fit any widget shape.
+- ✅ **Sector heatmap clickable** — Each sector cell on the dashboard heatmap is now clickable, navigating to the new Industries tab on the Discover page with that sector auto-expanded.
+- ✅ **widget-body-centered class applied** — Selectively applied centering to specific widgets that need it (not charts, to avoid ResizeObserver zoom loops):
+  - Dashboard: Market Status, Signal Alerts, Baskets, Sector Heatmap, Screener
+  - Paper Trading Dashboard: Account Metrics, Place Order
+  - Implemented via `bodyClassName` prop on `WidgetGrid` component
+
+#### Discover Page — Industries Tab
+
+- ✅ **New Industries tab** — 6th tab added to Discover page (`🏭 Industries`)
+- ✅ **SectorCard component** — Expandable cards with:
+  - Colored header box using red→green gradient based on daily avg change (same gradient as dashboard heatmap)
+  - Sector name and daily change percentage
+  - Collapsible constituent list — Top Gainers (green) and Top Losers (red) separated
+  - Clickable stock rows navigating to stock detail page
+  - All cards collapsed = looks like a bigger version of the dashboard heatmap
+- ✅ **Backend sector constituents API** — Two new endpoints:
+  - `GET /api/sectors/{sector_symbol}/constituents` — Returns 20 stocks per sector with price, change_pct, name, market_cap, PE, dividend_yield, volume. 5-minute cache.
+  - `GET /api/sectors/all-constituents` — Flat list of all sector symbols for matchmaker
+- ✅ **SECTOR_CONSTITUENTS map** — Static map of 11 sector ETFs → ~20 top constituent symbols each. Delisted symbols removed (PXD, HES, ATVI, PARA, IPG, PEAK) and replaced with current active tickers.
+- ✅ **Heatmap → Industries navigation** — Clicking a sector cell on the dashboard heatmap navigates to `/discover/industries?sector=XLK` (etc.), auto-expands that sector card
+
+#### Matchmaker Improvements
+
+- ✅ **Auto-load candidates** — Matchmaker now auto-loads S&P 500 candidates on page mount via `useEffect` with `hasAutoLoaded` ref (prevents re-fetching on tab switches)
+- ✅ **Industries source** — Added "Industries" as a matchmaker source pulling from all sector constituents
+
+#### Stock Detail — Quick Trade Modal
+
+- ✅ **QuickTradeModal component** — New floating order form accessible via "📈 Trade" button in stock detail header:
+  - Symbol pre-filled from current page
+  - Side (Buy/Sell), Type (Market/Limit/Stop/Stop-Limit/Bracket)
+  - Shares/Dollars toggle with quantity input
+  - Conditional fields: Limit price, Stop price, Take Profit, Stop Loss (appear based on order type)
+  - Submits to `/api/paper/orders` (same as Paper Trading dashboard)
+  - Close on Escape or click-outside
+  - Responsive width: `min-width: 340px; width: fit-content` grows horizontally for order types with extra fields
+  - `max-height: 80vh; overflow-y: auto` for very tall viewports
+
+#### Performance Page — P&L Bug Fix
+
+- ✅ **FIFO buy/sell pair matching** — Rewrote `_get_performance_trades()` in `server.py`:
+  - **Root cause:** Alpaca orders don't include a `pnl_pct` field. The old code set both entry and exit price to the sell order's `filled_avg_price`, resulting in 0% P&L for all trades. Trades were then filtered out (treated as incomplete).
+  - **Fix:** Groups orders by symbol and side, sorts chronologically, matches buys to sells FIFO, computes `pnl_pct = ((sell.price - buy.price) / buy.price) * 100`
+  - Performance page now shows metrics with as few as 1 completed round-trip trade
+
+#### Sidebar Stock Ticker
+
+- ✅ **SidebarTicker component** — Rotating stock ticker in the sidebar (desktop only, hidden at ≤768px):
+  - Shows configurable number of boxes (1–6, default 3)
+  - Each box: symbol, daily change %, trend badge, signal count
+  - Clickable → navigates to stock detail page
+  - Click source header to cycle through: Watchlist, S&P 500, Gov Trades, Insider
+  - Fade-in animation on rotation
+- ✅ **Three cycle modes:**
+  - **Batch** (default) — swaps all visible at once (1,2,3 → 4,5,6 → 7,8,9)
+  - **Slide** — advances one at a time (1,2,3 → 2,3,4)
+  - **Random** — random offset each cycle
+- ✅ **Eager data pre-fetching** — All 4 sources fetch in background on mount (not lazily when selected), so switching sources is instant. Loading indicator shown while fetching.
+- ✅ **Settings integration** — Ticker settings saved to SQLite `app_settings` table via Settings page
+
+#### Settings Page — Ticker Section
+
+- ✅ **New "Sidebar Ticker" settings card** with 4 configurable options:
+  - Cycle Speed (seconds) — 2–60, default 6
+  - Cycle Type — Batch / Slide / Random
+  - Visible Boxes — 1–6 items visible at once
+  - Default Source — Watchlist / S&P 500 / Gov Trades / Insider
+- ✅ **Backend DEFAULT_SETTINGS updated** — Added `ticker_cycle_speed`, `ticker_cycle_type`, `ticker_visible_count`, `ticker_default_source` to the allowed settings whitelist in `database.py`
+
+### Bug Fixes:
+
+- ✅ **Stock detail pages crashing** — `QuickTradeModal` called `watchlist?.find()` on an object (`{symbols:[], data:{}}`) instead of an array. Fixed to `watchlist?.data?.[symbol]?.price`.
+- ✅ **SidebarTicker not rendering** — Same watchlist API shape bug: `watchlist?.length` and `watchlist.map()` on an object. Fixed to use `watchlist?.symbols` and `watchlist?.data`.
+- ✅ **S&P 500 ticker source empty** — Sector constituents API returns `stocks` not `constituents`. Fixed in the query function.
+- ✅ **Ticker settings not persisting** — `PUT /api/settings` filters against `DEFAULT_SETTINGS.keys()`. Ticker keys weren't in the whitelist, so they were silently dropped. Added to `database.py`.
+- ✅ **DiscoverPage build error** — Duplicate `}, [routeTab]);` line left from edit. Removed.
+- ✅ **Trade modal overflow** — Fixed width `360px` too narrow for Stop-Limit/Bracket order types. Changed to `min-width: 340px; width: fit-content; max-width: 90vw`.
+
+### Files Changed:
+
+| File | Status | Description |
+|------|--------|-------------|
+| `frontend-react/src/styles/styles.css` | Modified | Baskets flex-wrap, Industries tab CSS (~160 lines), Quick Trade modal CSS, Sidebar ticker CSS (~90 lines), modal responsive width |
+| `frontend-react/src/components/ui/WidgetGrid.jsx` | Modified | Added `bodyClassName` prop support for selective centering |
+| `frontend-react/src/pages/DashboardPage.jsx` | Modified | Added `centered: true` to 5 widgets in WIDGET_MAP |
+| `frontend-react/src/components/paper/PaperDashboardTab.jsx` | Modified | Added `centered: true` to 2 widgets |
+| `frontend-react/src/components/dashboard/SectorHeatmapWidget.jsx` | Modified | Added click handler → navigates to Industries tab |
+| `frontend-react/src/pages/DiscoverPage.jsx` | Modified | Added Industries tab, SectorCard/IndustriesTab components, matchmaker auto-load, Industries source |
+| `frontend-react/src/pages/StockDetailPage.jsx` | Modified | Added Trade button + QuickTradeModal integration |
+| `frontend-react/src/components/stock/QuickTradeModal.jsx` | New | Floating order form modal for quick trading |
+| `frontend-react/src/components/SidebarTicker.jsx` | New | Rotating stock ticker with settings integration |
+| `frontend-react/src/components/Sidebar.jsx` | Modified | Added SidebarTicker between nav and footer |
+| `frontend-react/src/pages/SettingsPage.jsx` | Modified | Added Sidebar Ticker settings section (4 fields) + ticker defaults |
+| `backend/server.py` | Modified | SECTOR_CONSTITUENTS map, 2 sector endpoints, Industries matchmaker source, FIFO P&L fix, delisted symbols removed |
+| `backend/database.py` | Modified | Added ticker settings to DEFAULT_SETTINGS whitelist |
+
+### Technical Notes:
+
+- **Watchlist API shape** — `/api/watchlist` returns `{ symbols: string[], data: { [symbol]: {...} } }`, NOT an array. Multiple components were incorrectly treating it as an array. This pattern must be respected in all new components.
+- **react-grid-layout centering** — `widget-body-centered` class must NOT be applied to widgets containing TradingView charts (causes infinite ResizeObserver → zoom loop). Applied selectively via `bodyClassName` prop.
+- **Sector constituents API** — Returns `{ stocks: [...] }` not `{ constituents: [...] }`. 5-minute in-memory cache. ~20 stocks per sector fetched via yfinance batch.
+- **Settings whitelist** — Any new setting keys must be added to `DEFAULT_SETTINGS` in `database.py`, otherwise `PUT /api/settings` silently drops them.
+- **HashRouter query params** — `useLocation().search` works with HashRouter for passing query params like `?sector=XLK`.
+
+### Testing Notes:
+
+- ✅ Frontend build compiles cleanly (multiple iterations)
+- ✅ Stock detail pages load without crashes after QuickTradeModal fix
+- ✅ Sidebar ticker shows watchlist data, cycles through sources
+- ✅ Ticker settings save and persist after backend DEFAULT_SETTINGS fix
+- ✅ All 4 ticker sources (Watchlist, S&P 500, Gov Trades, Insider) return data
+- ✅ Trade modal resizes for Stop-Limit and Bracket order types
+
+### Next Steps:
+
+- [ ] Login rate limiting — `slowapi` or similar on `/api/login`
+- [ ] GPU cooldown (sleep between LLM calls)
+- [ ] Intraday timeframe support (4h, 1h candles)
+- [ ] Alert notifications (email/push when signals fire)
+- [ ] React Native app exploration
+- [ ] Industries tab filtering for matchmaker source
+- [ ] Screener widget auto-resize on content change
+
+### Next Session Prompt:
+
+> Feature batch complete: Industries tab on Discover (11 sectors with expandable constituent lists), clickable sector heatmap on dashboard, sidebar stock ticker (3 cycle modes, 4 sources, configurable via Settings), Quick Trade modal on stock detail pages (all 5 Alpaca order types), Performance page P&L fix (FIFO buy/sell matching), baskets flex-wrap, selective widget-body centering, matchmaker auto-load. Multiple bug fixes: watchlist API shape (`{symbols, data}` not array), settings whitelist for new keys, delisted sector symbols removed. Ticker settings added to Settings page (speed, cycle type, visible boxes, default source).

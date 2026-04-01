@@ -5,6 +5,7 @@ import { get } from '../api/client';
 import WidgetGrid from '../components/ui/WidgetGrid';
 import useGridLayout from '../hooks/useGridLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
+import QuickTradeModal from '../components/stock/QuickTradeModal';
 import StockPriceChart from '../components/stock/StockPriceChart';
 import IndicatorsWidget from '../components/stock/IndicatorsWidget';
 import ActionCardWidget from '../components/stock/ActionCardWidget';
@@ -69,6 +70,7 @@ export default function StockDetailPage() {
   const [companyName, setCompanyName] = useState('');
   const [calcEntryDate, setCalcEntryDate] = useState(null);
   const [calcExitDate, setCalcExitDate] = useState(null);
+  const [tradeOpen, setTradeOpen] = useState(false);
 
   const { layout, editMode, onLayoutChange, toggleEditMode, resetLayout } = useGridLayout('sd_stock_detail_layout', DEFAULT_LAYOUT);
 
@@ -128,6 +130,9 @@ export default function StockDetailPage() {
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
+          <button className="btn btn-success btn-sm" onClick={() => setTradeOpen(true)}>
+            📈 Trade
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={toggleEditMode}>
             {editMode ? '✓ Done' : '⚙ Customize'}
           </button>
@@ -143,6 +148,8 @@ export default function StockDetailPage() {
         onLayoutChange={onLayoutChange}
         editMode={editMode}
       />
+
+      <QuickTradeModal symbol={symbol} open={tradeOpen} onClose={() => setTradeOpen(false)} />
     </div>
   );
 }

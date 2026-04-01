@@ -23,13 +23,13 @@ const DEFAULT_LAYOUT = [
 ];
 
 const WIDGET_MAP = {
-  'market-status':  { header: null,               Content: MarketStatusWidget },
-  'signals-alert':  { header: null,               Content: SignalAlertsWidget },
-  'baskets':        { header: null,               Content: BasketsWidget },
-  'sector-heatmap': { header: null,               Content: SectorHeatmapWidget },
+  'market-status':  { header: null,               Content: MarketStatusWidget, centered: true },
+  'signals-alert':  { header: null,               Content: SignalAlertsWidget, centered: true },
+  'baskets':        { header: null,               Content: BasketsWidget, centered: true },
+  'sector-heatmap': { header: null,               Content: SectorHeatmapWidget, centered: true },
   'quick-log':      { header: null,               Content: QuickLogWidget },
   'watchlist':      { header: null,               Content: WatchlistWidget },
-  'screener':       { header: null,               Content: ScreenerWidget },
+  'screener':       { header: null,               Content: ScreenerWidget, centered: true },
 };
 
 export default function DashboardPage() {
@@ -52,6 +52,7 @@ export default function DashboardPage() {
     return {
       id: item.i,
       header: def.header,
+      bodyClassName: def.centered ? 'widget-body-centered' : undefined,
       content: (
         <ErrorBoundary>
           <def.Content />

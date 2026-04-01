@@ -61,7 +61,7 @@ export default function WidgetGrid({
                   <h3>{widget.header}</h3>
                 </div>
               )}
-              <div className="widget-body">{widget.content}</div>
+              <div className={`widget-body${widget.bodyClassName ? ' ' + widget.bodyClassName : ''}`}>{widget.content}</div>
             </div>
           ))}
         </ResponsiveGridLayout>

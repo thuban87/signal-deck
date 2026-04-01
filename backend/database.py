@@ -759,6 +759,10 @@ DEFAULT_SETTINGS = {
     "options_sp500_scan_enabled": "false",
     "options_sp500_scan_time": "09:45",
     "matchmaker_reset_days": "7",
+    "ticker_cycle_speed": "6",
+    "ticker_cycle_type": "batch",
+    "ticker_visible_count": "3",
+    "ticker_default_source": "watchlist",
 }
 
 

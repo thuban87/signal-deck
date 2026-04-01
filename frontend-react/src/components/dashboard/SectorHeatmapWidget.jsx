@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { get } from '../../api/client';
 import { formatChange } from '../../utils/formatters';
 
@@ -20,6 +21,7 @@ function heatmapColor(changePct) {
 }
 
 export default function SectorHeatmapWidget() {
+  const navigate = useNavigate();
   const { data: sectors, isLoading } = useQuery({
     queryKey: ['sectors-performance'],
     queryFn: () => get('/api/sectors/performance'),
@@ -39,7 +41,7 @@ export default function SectorHeatmapWidget() {
     <div className="card mb-4">
       <div className="card-header">
         <h3>Sector Heatmap</h3>
-        <span className="text-muted" style={{ fontSize: '0.8rem' }}>Daily sector performance</span>
+        <span className="text-muted" style={{ fontSize: '0.8rem' }}>Daily sector performance · Click to explore</span>
       </div>
       <div className="sector-heatmap-grid">
         <div className="heatmap-treemap">
@@ -49,7 +51,12 @@ export default function SectorHeatmapWidget() {
             const bg = heatmapColor(chg);
             const textColor = Math.abs(chg) > 1.5 ? '#fff' : 'var(--text-primary)';
             return (
-              <div key={s.symbol} className="heatmap-cell" style={{ flexGrow: weight.toFixed(1), background: bg, color: textColor }}>
+              <div
+                key={s.symbol}
+                className="heatmap-cell"
+                style={{ flexGrow: weight.toFixed(1), background: bg, color: textColor, cursor: 'pointer' }}
+                onClick={() => navigate(`/discover/industries?sector=${s.symbol}`)}
+              >
                 <span className="heatmap-label">{s.name}</span>
                 <span className="heatmap-value">{formatChange(chg)}</span>
                 <span className="heatmap-ticker">{s.symbol}</span>
