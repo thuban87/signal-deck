@@ -13,7 +13,7 @@ A full-stack trading signal dashboard that:
 8. **Quick-Logger** FAB — log stock ideas from anywhere, auto-resolves tickers
 9. **Sector Heatmap** — treemap of 11 SPDR sector ETFs with daily performance
 10. **Custom Baskets** — "Write What You Know" micro-sector groups with aggregate metrics
-11. **Widget Grid** — draggable/resizable dashboard layout via gridstack.js with edit mode and persistence
+11. **Widget Grid** — draggable/resizable dashboard layout via react-grid-layout with edit mode and persistence
 12. **Discover Hub** — 5-source stock discovery (Matchmaker swipe UI, Congress trades, Insider scan, Reddit social momentum, Options flow)
 13. **Trade Actions** — automated Buy/Sell/Hold recommendations with confidence levels
 14. **What-If Calculator** — historical trade simulation with candlestick chart and P&L
@@ -42,23 +42,25 @@ Trading/
 │   ├── data_fetcher.py        # yfinance data fetching
 │   ├── llm_analyst.py         # Ollama LLM integration (optional)
 │   └── main.py                # Original CLI entry point
-├── frontend/                   # Web UI (vanilla HTML/CSS/JS)
-│   ├── index.html             # App shell + sidebar nav + EasyMDE/gridstack CDN
-│   ├── favicon.svg            # SVG favicon (dark bg, green chart line)
-│   ├── css/styles.css         # Premium dark-mode design system
-│   └── js/
-│       ├── app.js             # Router, API client, auth, state, Quick-Logger FAB
-│       ├── dashboard.js       # Widget grid + watchlist + heatmap + baskets + screener
-│       ├── signals.js         # Signal feed table + filters + position sizing
-│       ├── stock.js           # Gridstack stock detail — chart, indicators, peers, insider, social, notes
-│       ├── backtest.js        # Backtester + equity curve + fundamental filters
-│       ├── paper.js           # Paper trading (Alpaca-synced + local fallback)
-│       ├── investigator.js    # Deep-dive research (news, sentiment, insider, earnings)
-│       ├── discover.js        # Discover hub — Matchmaker, Congress, Insider, Social, Options
-│       ├── actions.js         # Trade actions — Buy/Sell/Hold recommendations
-│       ├── calculator.js      # What-if trade calculator with chart
-│       ├── performance.js     # Performance analytics — equity curve, metrics, win rate
-│       └── settings.js        # Settings page — discovery tuning
+├── frontend-react/             # React + Vite SPA (active frontend source)
+│   ├── vite.config.js         # Vite config — base: '/static/', outDir: '../frontend-build'
+│   ├── index.html             # Vite entry point
+│   └── src/
+│       ├── main.jsx           # App bootstrap — React Router, TanStack Query, Zustand
+│       ├── App.jsx            # Layout shell — sidebar, hamburger menu, toast, Quick-Logger
+│       ├── styles/styles.css  # Premium dark-mode design system
+│       ├── api/client.js      # Fetch wrapper with JWT auth
+│       ├── stores/            # Zustand stores (auth, app state)
+│       ├── hooks/             # Custom hooks (usePaperTrading, useGridLayout, etc.)
+│       ├── pages/             # Page components (Dashboard, Stock, Discover, etc.)
+│       ├── components/        # Reusable UI + feature widgets
+│       │   ├── ui/            # WidgetGrid, PriceChart, AreaChart, Modal, etc.
+│       │   ├── dashboard/     # Dashboard widgets (7 widgets)
+│       │   ├── stock/         # Stock detail widgets (16 widgets)
+│       │   └── paper/         # Paper trading sub-tabs (5 tabs + dashboard widgets)
+│       └── utils/             # formatters.js, calculations.js
+├── frontend-build/             # Vite build output (served by backend)
+├── frontend/                   # Legacy vanilla JS/CSS/HTML (preserved, unused when build exists)
 ├── docs/dev/
 │   ├── Deployment.md          # Nginx + systemd deployment guide
 │   ├── Findings.md            # Backtest results analysis
@@ -66,6 +68,8 @@ Trading/
 │   └── Trading Crash Course.md
 ├── start-server.bat           # Launch backend server — Windows (port 8005)
 ├── stop-server.bat            # Kill running server processes — Windows
+├── deploy.sh                  # Linux deployment script
+├── deploy.bat                 # Windows deployment script
 ├── .env.example               # Template for secrets
 ├── .gitignore
 ├── requirements.txt
@@ -124,6 +128,33 @@ python backtest_llm.py AAPL
 
 ---
 
+## Frontend Tech Stack (React + Vite)
+
+Migrated from vanilla JS/CSS/HTML to a React SPA. See `docs/dev/Migration-Plan.md` for the full 7-phase plan.
+
+- **Vite 8.0.3** — build tool, `base: '/static/'`, output to `../frontend-build`
+- **React 19** — plain JSX, no TypeScript
+- **React Router v6** — HashRouter (`#/dashboard`, `#/stock/:symbol`, etc.)
+- **TanStack Query v5** — API data fetching + caching
+- **Zustand** — global state (auth, app settings)
+- **react-grid-layout v2.2.3** — draggable/resizable widget grids (v2 API: `dragConfig`/`resizeConfig` objects, top-level `rowHeight`/`margin`)
+- **lightweight-charts v5.1.0** — TradingView charting (v5 API: `chart.addSeries(AreaSeries, {...})`)
+- **EasyMDE** — Markdown editor for per-stock notes
+- **Vitest 4.1.2** — 43 unit tests (formatters, calculations, API client, signals)
+
+### Build & Serve
+
+```bash
+cd frontend-react
+npm install
+npm run build          # outputs to ../frontend-build/
+npm test               # runs Vitest
+```
+
+Backend auto-detects `frontend-build/` and serves it. Falls back to `frontend/` if no build exists.
+
+---
+
 ## Key Design Decisions
 
 ### Signal Tiers (in `backtest_signals.py` and `indicators.py`)
@@ -162,7 +193,16 @@ Two modes, auto-detected at page load via `/api/config`:
 - Fractional shares enabled
 - Auto-refreshes every 30 seconds
 - Portfolio equity chart via `get_portfolio_history()`
-- Endpoints: `/api/alpaca/account`, `/api/alpaca/positions`, `/api/paper/orders`, `/api/alpaca/orders`, `/api/alpaca/portfolio-history`, `DELETE /api/alpaca/positions/{symbol}`
+- External link to Alpaca paper trading dashboard in page header
+- Refresh button with local-time sync timestamp
+- Endpoints: `/api/alpaca/account`, `/api/alpaca/positions`, `/api/paper/orders`, `/api/alpaca/orders`, `/api/alpaca/portfolio-history`, `DELETE /api/alpaca/positions/{symbol}`, `/api/paper/orders/full`, `/api/paper/orders/{id}/cancel`, `/api/paper/configurations`
+
+**5 Sub-Tabs (Alpaca mode):**
+- **Dashboard** — Widget grid with Account Metrics, Place Order, Open Positions, Recent Orders, Equity Chart. Supports customize/reset layout.
+- **Positions** — All/Long/Short/Options sub-tabs, asset class filter, 15-column picker, clickable symbols
+- **Orders** — Status/side filters, 20-column picker, pagination (50/page), cancel button, clickable symbols
+- **Balances** — Balance sheet with 20+ fields across 4 sections (Core, Margin, Transfers, Account Info). Export as Markdown.
+- **Configure** — Account config toggles via Alpaca API (DTBP check, fractional trading, shorting, etc.)
 
 **Local Fallback** (no Alpaca keys):
 - SQLite-backed paper trading via `database.py`
@@ -230,10 +270,19 @@ Group related stocks into named baskets with emoji icons. 4 default baskets seed
 
 ## Widget Grid System
 
-Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** for draggable/resizable widget layout.
+The **Dashboard**, **Stock Detail**, and **Paper Trading Dashboard** pages use **react-grid-layout v2.2.3** for draggable/resizable widget layout.
+
+### react-grid-layout v2 API Notes
+- **Drag/resize control:** Use `dragConfig={{ enabled: bool }}` and `resizeConfig={{ enabled: bool }}` — NOT flat `isDraggable`/`isResizable` props (silently ignored in v2)
+- **Row height:** Pass `rowHeight` as a top-level prop on `ResponsiveGridLayout` — NOT inside `gridConfig` (which is only for `GridLayout`)
+- **Centering caution:** Do NOT add `display: flex; justify-content: center` to `.widget-body` — causes infinite ResizeObserver loop with TradingView charts
 
 ### Dashboard Widgets
 - **7 widgets:** Market Status, Signal Alerts, Baskets, Sector Heatmap, Quick-Log, Watchlist, Screener
+
+### Paper Trading Dashboard Widgets
+- **5 widgets:** Account Metrics, Place Order, Open Positions, Recent Orders, Equity Chart
+- **Edit mode:** same Customize/Reset UX as main dashboard
 - **Edit mode:** "Customize" button toggles drag/resize with visual handles
 - **Min sizes:** enforced per widget (e.g., watchlist ≥ 6 cols, quick-log ≥ 3 cols)
 - **Persistence:** layout auto-saved to `localStorage`, restored on page load
@@ -244,7 +293,7 @@ Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** f
 - **16 widgets:** Price Chart, Indicators, Signal Recommendation, Earnings, Related Stocks, Macro Events, Active Signals, Fundamentals, Insider Trading, Recent News, Social Trending, Position Sizing, Notes, Trade Calculator, Saved Simulations, LLM Analysis
 - **Edit mode:** same UX as dashboard — "Customize" button with drag/resize handles
 - **Global layout:** saved to `localStorage` keys `sd_stock_detail_layout` / `sd_stock_detail_layout_mobile` (shared across all symbols, separate per device)
-- **Chart hover tooltip:** OHLCV values displayed on crosshair move
+- **Chart hover tooltip:** OHLCV values displayed as floating window that follows cursor (flips sides near chart edge)
 - **Company name:** displayed in header below symbol, populated from fundamentals API
 - **Related Stocks:** Finnhub peers API with daily % change and clickable links
 - **Insider Trading:** light copy from Investigator — summary bar + paginated table (5 at a time)
@@ -254,7 +303,7 @@ Both the **Dashboard** and **Stock Detail** pages use **gridstack.js v10.3.1** f
 
 ### Mobile
 - **Scroll handle:** fixed bottom bar with ▲/▼ buttons appears during edit mode for touch-device scrolling
-- **`App.isMobile()`** — `matchMedia('(max-width: 768px)')` check used by `getLayoutKey()` in both modules
+- **Mobile detection** — `matchMedia('(max-width: 768px)')` check used by `getLayoutKey()` in `useGridLayout` hook
 
 ---
 
@@ -403,6 +452,8 @@ Configurable account size and risk percentage inputs on each page.
 - **Options flow weekend gap** — yfinance reports OI=0 outside market hours; scanner finds activity on weekday scans only
 - **Reddit API required** — Social momentum tab requires Reddit credentials (free at reddit.com/prefs/apps)
 - **No login rate limiting** — `/api/login` endpoint has no brute-force protection. Add `slowapi` or similar to `server.py` with a 5-attempts-per-minute limit before production deployment.
+- **Alpaca activities SDK gap** — `get_account_activities()` doesn't exist in alpaca-py 0.43.2. Direct REST call works from backend but frontend receives empty array. Activities tab removed; viewable on Alpaca dashboard.
+- **`frontend-build/` not tracked in git** — Build artifacts excluded via `.gitignore`. Server generates its own build via `deploy.sh` (`npm ci` + `npm run build`).
 
 ---
 
@@ -438,7 +489,14 @@ Configurable account size and risk percentage inputs on each page.
 - [x] Performance Analytics page — 14 metrics, equity curve, win rate by tag, trade distribution
 - [x] Alpha Vantage API integration
 - [x] Sidebar reorder (logical flow: Dashboard → Discover → ... → Performance → Settings)
-- [ ] **React + Vite migration** — rewrite frontend as React SPA (see `docs/dev/Migration-Plan.md`)
+- [x] **React + Vite migration** — React 19, Vite 8, TanStack Query v5, Zustand, react-grid-layout, lightweight-charts v5 (see `docs/dev/Migration-Plan.md`)
+- [x] Post-migration bug fixes — lightweight-charts v5 API (`addSeries`, `createSeriesMarkers`), formatter crash guards, CSS class alignment, field name mapping, cache busting
+- [x] react-grid-layout v2 API fixes — `dragConfig`/`resizeConfig` objects, top-level `rowHeight`/`margin`
+- [x] Paper Trading overhaul — 5 sub-tabs (Dashboard, Positions, Orders, Balances, Configure) mirroring Alpaca
+- [x] Paper Trading dashboard widget grid with customize/reset
+- [x] Clickable symbols across all Paper Trading tabs
+- [x] Alpaca Dashboard external link + refresh with sync timestamp
+- [x] `frontend-build/` excluded from git tracking
 - [ ] Login rate limiting — `slowapi` or similar on `/api/login`
 - [ ] GPU cooldown (sleep between LLM calls)
 - [ ] Intraday timeframe support (4h, 1h candles)

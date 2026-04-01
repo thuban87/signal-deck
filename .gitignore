@@ -40,9 +40,9 @@ ehthumbs.db
 .gemini/
 .agents/
 
-# Node (if ever added)
+# Node / Vite
 node_modules/
-package-lock.json
+frontend-build/
 
 # Python virtual environments
 venv/
